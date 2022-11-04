@@ -7,7 +7,7 @@ voicevox(+α) + whisper による speech to text to speech(STS)
 > ずんだもんささやき声すこすこスコティッシュフォールド
 
 # Install
-
+⚠️現在python=3.8限定⚠️
 ```
 pip install git+https://github.com/OhkuboSGMS/zunda-ASMR 
 ```
