@@ -12,7 +12,9 @@ voicevox(+α) + whisper による speech to text to speech(STS)
 pip install git+https://github.com/OhkuboSGMS/zunda-ASMR 
 ```
 # Run
-```zunda <audio_file> --output <output_file_name>```
+```
+zunda <audio_file> --output <output_file_name>
+```
 # Author
 
 Okubo Shigemasa
