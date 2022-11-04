@@ -8,11 +8,11 @@ voicevox(+α) + whisper による speech to text to speech(STS)
 
 ![zunda-ASMR](https://user-images.githubusercontent.com/11247895/199970004-a262a1b3-8e0a-4324-8d5b-0da1525186c4.png)
 
-pip install git+https://github.com/OhkuboSGMS/zunda-ASMR 
 
 # Install
 ⚠️現在python=3.8限定⚠️
 ```
+pip install git+https://github.com/OhkuboSGMS/zunda-ASMR 
 ```
 # Run
 ```
