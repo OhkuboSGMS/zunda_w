@@ -9,6 +9,10 @@ voicevox(+α) + whisper による speech to text to speech(STS)
 ![zunda-ASMR](https://user-images.githubusercontent.com/11247895/199970004-a262a1b3-8e0a-4324-8d5b-0da1525186c4.png)
 
 
+
+https://user-images.githubusercontent.com/11247895/200321495-f8ce3665-afa1-4641-8202-73830df6aecc.mp4
+
+
 # Install
 ⚠️現在python=3.8限定⚠️
 ```
