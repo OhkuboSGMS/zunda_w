@@ -9,9 +9,13 @@ def file_hash(path: Union[str, Path], hash_fun=hashlib.md5) -> str:
         return hash_fun(fp.read()).hexdigest()
 
 
+def text_hash(content: bytes, hash_fun=hashlib.md5) -> str:
+    return hash_fun(content).hexdigest()
+
+
 def try_json_parse(json_path: str) -> bool:
     try:
         json.loads(Path(json_path).read_text(encoding='UTF-8'))
         return True
-    except  json.JSONDecodeError:
+    except json.JSONDecodeError:
         return False

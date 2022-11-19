@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Tuple
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
+from loguru import logger
 from pydub import AudioSegment, silence
 
 
@@ -39,7 +40,7 @@ def divide_by_silence(wave_file: str, min_silence_len=4000, seek_step=10, silenc
         if duration < min_length:
             print(f'skip audio :{i}')
             continue
-        print(
+        logger.debug(
             f'[{idx:04d}] {int(s / 1000 / 60):02d}:{int(s / 1000 % 60):02d} -> {int(e / 1000 / 60):02d}:{int(e / 1000 % 60):02d}')
         slice = segment[s:e]
         output_path = os.path.join(output_dir, f'{idx:04d}.wav')
