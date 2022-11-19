@@ -32,7 +32,7 @@ class Options:
     no_detect_silence: bool = False
     cache_root_dir: str = os.curdir
     data_cache_dir: str = '.cache'
-    engine_cache_dir: str = '.engine'
+    engine_cache_dir: str = cache.user_cache_dir('voicevox')
 
     ostt: bool = False
     otts: bool = False

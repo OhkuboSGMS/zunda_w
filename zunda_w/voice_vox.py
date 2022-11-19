@@ -16,16 +16,9 @@ from loguru import logger
 from pydub import AudioSegment
 
 from zunda_w.download import cache_download_from_github
+from zunda_w.voicevox_download_link import _engines, _engines_sha256
 
-_engines = {
-    'Windows': ['https://github.com/VOICEVOX/voicevox_engine/releases/download/0.13.1/windows-nvidia.7z.001',
-                'https://github.com/VOICEVOX/voicevox_engine/releases/download/0.13.1/windows-nvidia.7z.002'],
-    'Darwin': ['https://github.com/VOICEVOX/voicevox_engine/releases/download/0.13.1/macos-x64.7z.001',
-               'https://github.com/VOICEVOX/voicevox_engine/releases/download/0.13.1/macos-x64.7z.002'],
-    'Linux': ['https://github.com/VOICEVOX/voicevox_engine/releases/download/0.13.1/linux-nvidia.7z.001',
-              'https://github.com/VOICEVOX/voicevox_engine/releases/download/0.13.1/linux-nvidia.7z.002'
-              ]
-}
+# TODO ポート番号の仕様チェック
 ROOT_URL = 'http://localhost:50021'
 
 
@@ -51,15 +44,16 @@ def replace_query(src_query: Dict, trt_query: Dict) -> Dict:
     return ret_query
 
 
-def _download_engine(urls: List[str], cache_dir: str):
+def _download_engine(urls: List[str], file_hash: List[str], cache_dir: str):
     """
     voicevox-engineをダウンロード.
     ダウンロード後解凍
     .engine/windows/ .7zip ,exe folder
     """
-    for url in urls:
+    assert len(urls) == len(file_hash)
+    for url, h in zip(urls, file_hash):
         logger.debug(f'Download: {url}')
-        success, save_path = cache_download_from_github(url, cache_dir, force_download=False)
+        success, save_path = cache_download_from_github(url, h, cache_dir, force_download=False)
         if not success:
             raise IOError(f'URL:{url} can\'t download')
         yield save_path
@@ -94,8 +88,8 @@ def extract_engine(root_dir: str = '.engine', directory: str = 'voicevox') -> st
         return str(exe_path[0])
     # download and extract exe
     else:
-        logger.debug('Download voicevox-engine from github')
-        archives = list(_download_engine(_engines[system], str(root_dir)))
+        logger.debug(f'Download voicevox-engine from github　-> {root_dir}')
+        archives = list(_download_engine(_engines[system], _engines_sha256[system], str(root_dir)))
         exe_dir = _extract_multipart(archives, exe_dir)
         exe_path = list(Path(exe_dir).glob('**/run.exe'))
         return str(exe_path[0])
