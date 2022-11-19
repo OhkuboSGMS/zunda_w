@@ -6,17 +6,19 @@ from typing import List, Literal, Iterator, Dict, Sequence
 import torch
 import whisper
 from dataclasses_json import dataclass_json
+from loguru import logger
 from tqdm import tqdm
 from whisper import Whisper
 from whisper.utils import write_srt
 
 from zunda_w.silent import Segment
+from zunda_w.util import text_hash
 
 _model_cache: Dict[str, str] = {}
 
 
 @dataclass_json()
-@dataclass()
+@dataclass(frozen=True)
 class WhisperProfile:
     model: Literal['tiny', 'small', 'base', 'medium', 'large'] = 'small'
     language: str = 'ja'
@@ -44,13 +46,14 @@ def _align_segment(seg: Dict, meta: Segment, idx: int) -> Dict:
 
 def transcribe_non_silence(wave_files: List[str], meta_files: List[str], profile: WhisperProfile,
                            close_model: bool = False) -> Iterator[Dict]:
-    print('Whisper profile:')
-    print(profile)
+    logger.debug('Whisper profile:')
+    logger.debug(profile)
 
     model = whisper.load_model(profile.model) if profile.model not in _model_cache else _model_cache[profile.model]
 
     idx = 0
     for audio_file, meta_file in tqdm(zip(wave_files, meta_files), desc='Whisper Speech to Text'):
+        logger.debug(f'{audio_file},{meta_file}')
         meta = Segment.from_json(Path(meta_file).read_text(encoding='UTF-8'))
         result = _transcribe(model, profile, audio_file)
         result = list(map(lambda seg: _align_segment(seg, meta, idx), result['segments']))
@@ -64,15 +67,19 @@ def transcribe_non_silence(wave_files: List[str], meta_files: List[str], profile
 
 
 def transcribe_non_silence_srt(wave_files: Sequence[str], meta_files: Sequence[str], profile: WhisperProfile,
-                               original_name: str,
                                root_dir: str = os.curdir, output_dir: str = '.stt') -> str:
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
+    file_name = text_hash(profile.to_json().encode(encoding='UTF-8'))
+    output_srt_path = output_dir.joinpath(file_name).with_suffix('.srt')
+    logger.debug(f'srt path{output_srt_path} hash:{profile.__hash__()}')
+    if output_srt_path.exists():
+        logger.debug('Skip Whisper transcribe use cache.')
+        return str(output_srt_path)
     srts = []
     for result in transcribe_non_silence(wave_files, meta_files, profile):
         srts.extend(result)
-    file_name = Path(original_name).stem
-    output_srt_path = output_dir.joinpath(file_name).with_suffix('.srt')
+
     with open(output_srt_path, "w", encoding="UTF-8") as srt:
         write_srt(srts, file=srt)
     return str(output_srt_path)
