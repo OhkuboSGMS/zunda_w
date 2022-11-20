@@ -46,7 +46,7 @@ def cache_download_from_github(url: str, hash_name: str, save_dir: Union[str, Pa
         hash_func = getattr(hashlib, _hash_func)
         if force_download:
             return download_from_github(url, save_dir)
-        if util.file_hash(str(save_path), hash_func) != hash_name:
+        if util.file_hash(str(save_path), hash_func) != str.lower(hash_name):
             logger.warning(f'exists file not valid. re-download from url:{save_path}')
             return download_from_github(url, save_dir)
 
