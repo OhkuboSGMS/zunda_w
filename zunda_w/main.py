@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import List, Iterator
+from typing import List, Iterator, Any, Optional, Tuple
 
 from classopt import classopt, config
 from loguru import logger
@@ -60,7 +60,7 @@ class Options:
             return [self.default_v_profile for i in range(n)]
 
 
-def main(arg: Options) -> Iterator[str]:
+def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     voicevox_process = None
     cache_tts = '.tts'
     logger.success('start process')
@@ -69,7 +69,7 @@ def main(arg: Options) -> Iterator[str]:
     try:
         # voicevox立ち上げ,フォルダが無ければダウンロードする.
         voicevox_process = voice_vox.launch_voicevox_engine(voice_vox.extract_engine(root_dir=arg.engine_dir))
-        yield 'Launch Voicevox'
+        yield 'Launch Voicevox', None
 
         if not os.path.exists(arg.speaker_json):
             voice_vox.get_speakers(arg.speaker_json)
@@ -103,7 +103,7 @@ def main(arg: Options) -> Iterator[str]:
                 meta, silent_audio = silent.divide_by_silence(original_audio, root_dir=cache_dir)
                 # 切り抜き音声から文字おこし
                 stt_file = transcribe_non_silence_srt(silent_audio, meta, whisper_profile, cache_dir)
-            yield 'Speech to Text(Whisper)'
+            yield 'Speech to Text(Whisper)', stt_file
             logger.debug('text to speech')
             # voicevoxによる音声合成
             logger.debug(f'{stt_file} to {voice_vox.get_speaker_info(speaker_id, speakers_data)}')
@@ -112,19 +112,19 @@ def main(arg: Options) -> Iterator[str]:
 
             stt_files.append(stt_file)
             tts_dirs.append(tts_dir)
-            yield 'Text to Speech(Voicevox)'
+            yield 'Text to Speech(Voicevox)', tts_dir
         # srt,audioのソート
         logger.debug('sort srt and audio')
         # 相槌をある程度フィルタリングする
         compose: SpeakerCompose = merge(stt_files, tts_dirs, word_filter=word_filter)
-        yield 'Merge Audio Files'
+        yield 'Merge Audio Files', compose
         # 音声は位置
         logger.debug('arrange audio')
         arrange_sound = edit.arrange(compose)
         logger.debug(f'export arrange audio to \'{arg.output}\'')
         arrange_sound.export(arg.output)
         logger.success('finish process')
-        yield 'Finish'
+        yield 'Finish', arg.output
     except Exception as e:
         logger.exception(e)
     finally:

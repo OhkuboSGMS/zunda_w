@@ -76,6 +76,12 @@ def _extract_multipart(archives: List[Union[str, Path]], directory: str):
 
 
 def extract_engine(root_dir: str = '.engine', directory: str = 'voicevox') -> str:
+    """
+    voicevox-engineをダウンロード.ファイルに展開
+    :param root_dir:
+    :param directory:
+    :return:
+    """
     system = platform.system()
     if system not in _engines.keys():
         raise NotImplementedError(system)

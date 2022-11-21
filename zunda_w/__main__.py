@@ -8,8 +8,8 @@ def cli():
     arg = Options.from_args()
     logger.info('Parameters:')
     logger.info(arg)
-    for _yield in main(arg):
-        pass
+    for msg, data in main(arg):
+        print(msg, data)
 
 
 if __name__ == '__main__':
