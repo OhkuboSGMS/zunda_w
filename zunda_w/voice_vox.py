@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import platform
@@ -5,13 +7,15 @@ import subprocess
 import time
 from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
+from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
-from typing import Sequence, Generator, List, Union, Optional, TypedDict, Dict
+from typing import Sequence, Generator, List, Union, Optional, TypedDict, Dict, Iterator, Tuple
 
 import py7zr
 import requests
 import srt
+from dataclasses_json import dataclass_json
 from loguru import logger
 from pydub import AudioSegment
 
@@ -75,11 +79,12 @@ def _extract_multipart(archives: List[Union[str, Path]], directory: str):
     return directory
 
 
-def extract_engine(root_dir: str = '.engine', directory: str = 'voicevox') -> str:
+def extract_engine(root_dir: str = '.engine', directory: str = 'voicevox', dry_run: bool = False) -> Optional[str]:
     """
     voicevox-engineをダウンロード.ファイルに展開
     :param root_dir:
     :param directory:
+    :param dry_run:実際にダウンロード等は行わず，実行可能かのみチェックする
     :return:
     """
     system = platform.system()
@@ -90,10 +95,12 @@ def extract_engine(root_dir: str = '.engine', directory: str = 'voicevox') -> st
     exe_dir = root_dir.joinpath(directory)
     # check already extracted
     exe_path = list(exe_dir.glob('**/run.exe'))
-    if exe_dir and len(exe_path) > 0:
+    if exe_dir and len(exe_path) == 1:
         return str(exe_path[0])
     # download and extract exe
     else:
+        if dry_run:
+            return None
         logger.debug(f'Download voicevox-engine from github　-> {root_dir}')
         archives = list(_download_engine(_engines[system], _engines_sha256[system], str(root_dir)))
         exe_dir = _extract_multipart(archives, exe_dir)
