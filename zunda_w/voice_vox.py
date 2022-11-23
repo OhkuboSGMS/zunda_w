@@ -172,6 +172,47 @@ def run(srt_file: str, root_dir: str, speaker: int = 1, query: VoiceVoxProfile =
     return text_to_speech(subtitles, speaker, str(output_dir), query)
 
 
+@dataclass_json
+@dataclass
+class Style:
+    id: int
+    name: str
+
+
+@dataclass_json
+@dataclass
+class Speaker:
+    name: str
+    speaker_uuid: str
+    styles: List[Style]
+    version: str
+
+    def as_style_names(self) -> List[str]:
+        return list(map(lambda s: f'{self.name}({s.name})', self.styles))
+
+    def as_style_ids(self) -> List[int]:
+        return list(map(lambda s: s.id, self.styles))
+
+
+@dataclass
+class Speakers:
+    data: List[Speaker]
+
+    @classmethod
+    def read(cls, path) -> Speakers:
+        with open(path, encoding='UTF-8') as fp:
+            return Speakers(data=Speaker.schema().load(json.load(fp), many=True))
+
+    def as_view(self) -> Dict[int, str]:
+        """
+        selectbox用に変換
+        :return:Dict[style_id,style_name(speaker_name(style_name))]
+        """
+        _data: Iterator[Tuple[int, str]] = chain.from_iterable(
+            map(lambda speaker: zip(speaker.as_style_ids(), speaker.as_style_names()), self.data))
+        return {style_id: style_name for style_id, style_name in _data}
+
+
 def get_speakers(write_path: Optional[str] = None) -> Optional[str]:
     r = requests.get(f"{ROOT_URL}/speakers", )
     if r.status_code == 200:
