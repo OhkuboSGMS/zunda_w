@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "zunda-w"
-version = "0.1.2"
+version = "0.1.3"
 description = "zunda-ASMR is speech to text to speech by voicevox(+α) and whisper ."
 authors = ["OhkuboSGMS <ginger.os777146th@gmail.com>"]
 license = "MIT"
