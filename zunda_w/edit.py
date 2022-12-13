@@ -23,7 +23,7 @@ def concatenate(wav_files: Sequence[str]) -> AudioSegment:
 
 
 def arrange(compose: SpeakerCompose) -> AudioSegment:
-    ms = millisecond(compose.n_length)
+    ms = millisecond(compose.audio_duration)
     empty = AudioSegment.silent(ms, 44100)
     next_sum = 0
     start_point = []
