@@ -1,5 +1,6 @@
 import datetime
 from dataclasses import dataclass
+from functools import cached_property
 from itertools import chain
 from pathlib import Path
 from typing import Sequence, List, Callable
@@ -21,8 +22,16 @@ class SpeakerUnit:
 @dataclass
 class SpeakerCompose:
     unit: List[SpeakerUnit]
-    # 会話の総時間
+    # whisper計測の会話総時間
     n_length: datetime.timedelta
+
+    @cached_property
+    def audio_duration(self) -> datetime.timedelta:
+        """
+        unit.audioの総時間
+        :return:
+        """
+        return datetime.timedelta(milliseconds=sum(map(lambda x: len(x.audio), self.unit)))
 
 
 def _parse_with_id(srt_file_path: str, id: int, encoding: str, wave_path: str) -> List[SpeakerUnit]:
