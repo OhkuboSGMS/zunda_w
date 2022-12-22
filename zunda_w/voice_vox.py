@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import platform
 import subprocess
 import time
 from concurrent.futures import as_completed
@@ -20,10 +19,9 @@ from pydub import AudioSegment
 
 from zunda_w.cache import cached_file
 from zunda_w.download_voicevox import extract_engine
-
-# TODO ポート番号の仕様チェック
 from zunda_w.hash import concat_hash, dict_hash
 
+# TODO ポート番号の仕様チェック
 ROOT_URL = 'http://localhost:50021'
 
 
@@ -53,7 +51,23 @@ def launch_voicevox_engine(exe_path: str) -> subprocess.Popen:
     return subprocess.Popen([exe_path, '--use_gpu'], stdout=subprocess.DEVNULL)
 
 
-def synthesis(text: str, filename: str, speaker=1, max_retry=20, query: VoiceVoxProfile = None):
+def _request_and_write(filename: str, synth_payload, query_data) -> Optional[str]:
+    r = requests.post(f"{ROOT_URL}/synthesis", params=synth_payload,
+                      data=json.dumps(query_data), timeout=(10.0, 300.0))
+    if r.status_code == 200:
+        # 別スレッドで既に保存されている可能性も考慮.
+        if os.path.exists(filename):
+            return filename
+
+        with open(filename, "wb") as fp:
+            fp.write(r.content)
+            fp.flush()
+            os.fsync(fp.fileno())
+        return filename
+    return None
+
+
+def synthesis(text: str, ouput_dir: str, speaker=1, max_retry=20, query: VoiceVoxProfile = None):
     # audio_query
     query_payload = {"text": text, "speaker": speaker}
     for query_i in range(max_retry):
@@ -64,20 +78,21 @@ def synthesis(text: str, filename: str, speaker=1, max_retry=20, query: VoiceVox
             break
         time.sleep(1)
     else:
-        raise ConnectionError("リトライ回数が上限に到達しました。 audio_query : ", filename, "/", text[:30], r.text)
+        raise ConnectionError("リトライ回数が上限に到達しました。 audio_query : ", ouput_dir, "/", text[:30], r.text)
 
     # synthesis
     synth_payload = {"speaker": speaker}
     query_data = replace_query(query_data, query)
+    # リクエストパラメータからキャッシュ値を計算
+    cache_hash: str = str(concat_hash([dict_hash(query_payload)]))
+    output_file = os.path.join(ouput_dir, f'{cache_hash}.wav')
+
     for synth_i in range(max_retry):
-        r = requests.post(f"{ROOT_URL}/synthesis", params=synth_payload,
-                          data=json.dumps(query_data), timeout=(10.0, 300.0))
-        if r.status_code == 200:
-            with open(filename, "wb") as fp:
-                fp.write(r.content)
-            return f'{text} -> {filename} '
+        output_file_name = cached_file(output_file, lambda: _request_and_write(output_file, synth_payload, query_data))
+        if output_file_name is not None:
+            return f'{text} -> {output_file_name} '
     else:
-        raise ConnectionError("リトライ回数が上限に到達しました。 synthesis : ", filename, "/", text[:30], r, text)
+        raise ConnectionError("リトライ回数が上限に到達しました。 synthesis : ", ouput_dir, "/", text[:30], r, text)
 
 
 def output_path(idx: int, root: str) -> str:
@@ -91,17 +106,25 @@ def read_output_waves(wave_dir: str) -> Generator[AudioSegment, None, None]:
 
 
 def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile):
+    """
+    VoiceVoxローカルサーバに対してリクエストを投げてttsを実行.
+
+    :param contents:
+    :param speaker:
+    :param output_dir:
+    :param query:
+    :return:
+    """
     with ThreadPoolExecutor() as executor:
         futures = []
         for i, line in enumerate(contents):
-            futures.append(executor.submit(synthesis, line, output_path(i, output_dir), speaker=speaker, query=query))
+            futures.append(executor.submit(synthesis, line, output_dir, speaker=speaker, query=query))
         for result in as_completed(futures):
             logger.debug(result.result())
     return output_dir
 
 
-def run(srt_file: str, root_dir: str, speaker: int = 1, query: VoiceVoxProfile = None,
-        output_dir: str = '.tts'):
+def run(srt_file: str, root_dir: str, speaker: int = 1, query: VoiceVoxProfile = None, output_dir: str = '.tts'):
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
