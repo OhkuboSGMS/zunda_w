@@ -6,6 +6,7 @@ from typing import List, Iterator, Any, Optional, Tuple
 from classopt import classopt, config
 from loguru import logger
 
+from zunda_w import download_voicevox
 from zunda_w import edit, silent, voice_vox, transcribe_non_silence_srt, transcribe_with_config, file_hash, \
     SpeakerCompose, merge, array_util, cache
 from zunda_w.util import try_json_parse
@@ -68,7 +69,7 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         raise Exception('Pass Audios Files')
     try:
         # voicevox立ち上げ,フォルダが無ければダウンロードする.
-        voicevox_process = voice_vox.launch_voicevox_engine(voice_vox.extract_engine(root_dir=arg.engine_dir))
+        voicevox_process = voice_vox.launch_voicevox_engine(download_voicevox.extract_engine(root_dir=arg.engine_dir))
         yield 'Launch Voicevox', None
 
         if not os.path.exists(arg.speaker_json):
@@ -113,6 +114,7 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
             stt_files.append(stt_file)
             tts_dirs.append(tts_dir)
             yield 'Text to Speech(Voicevox)', tts_dir
+
         # srt,audioのソート
         logger.debug('sort srt and audio')
         # 相槌をある程度フィルタリングする
