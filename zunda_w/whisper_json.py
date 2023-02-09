@@ -68,6 +68,15 @@ def transcribe_non_silence(wave_files: List[str], meta_files: List[str], profile
 
 def transcribe_non_silence_srt(wave_files: Sequence[str], meta_files: Sequence[str], profile: WhisperProfile,
                                root_dir: str = os.curdir, output_dir: str = '.stt') -> str:
+    """
+    無音区間を切り抜いた音声ファイル列からsrtファイルを生成．
+    :param wave_files:
+    :param meta_files:
+    :param profile:
+    :param root_dir:
+    :param output_dir:
+    :return:
+    """
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
     file_name = text_hash(profile.to_json().encode(encoding='UTF-8'))

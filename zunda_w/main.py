@@ -90,7 +90,7 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         voicevox_profiles = arg.voicevox_profiles(len(audio_files))
         word_filter = WordFilter(arg.word_filter)
         stt_files = []
-        tts_dirs = []
+        tts_file_list: List[List[str]] = []
         for idx, (original_audio, speaker_id) in enumerate(zip(audio_files, speakers)):
             audio_hash = file_hash(original_audio)
             cache_dir = os.path.join(arg.data_dir, audio_hash)
@@ -108,17 +108,17 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
             logger.debug('text to speech')
             # voicevoxによる音声合成
             logger.debug(f'{stt_file} to {voice_vox.get_speaker_info(speaker_id, speakers_data)}')
-            tts_dir = voice_vox.run(stt_file, speaker=speaker_id, root_dir=cache_dir, output_dir=cache_tts,
-                                    query=voicevox_profiles[idx])
+            tts_files = voice_vox.run(stt_file, speaker=speaker_id, root_dir=cache_dir, output_dir=cache_tts,
+                                      query=voicevox_profiles[idx])
 
             stt_files.append(stt_file)
-            tts_dirs.append(tts_dir)
-            yield 'Text to Speech(Voicevox)', tts_dir
+            tts_file_list.append(tts_files)
+            yield 'Text to Speech(Voicevox)', tts_files
 
         # srt,audioのソート
         logger.debug('sort srt and audio')
         # 相槌をある程度フィルタリングする
-        compose: SpeakerCompose = merge(stt_files, tts_dirs, word_filter=word_filter)
+        compose: SpeakerCompose = merge(stt_files, tts_file_list, word_filter=word_filter)
         yield 'Merge Audio Files', compose
         # 音声は位置
         logger.debug('arrange audio')

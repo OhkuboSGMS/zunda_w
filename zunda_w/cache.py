@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Tuple
 
 
 def user_cache_dir(name: str) -> str:
@@ -15,7 +15,7 @@ def user_cache_dir(name: str) -> str:
     return cache_dir
 
 
-def cached_file(output_file: str, func: Callable[[], str]) -> str:
+def cached_file(output_file: str, func: Callable[[], str]) -> Tuple[bool, str]:
     """
     output_fileがあればそのファイルパスを返す.
     無ければfuncを実行してその結果を返す．
@@ -26,5 +26,5 @@ def cached_file(output_file: str, func: Callable[[], str]) -> str:
     :return:
     """
     if os.path.exists(output_file):
-        return f'[cached] {output_file}'
-    return func()
+        return True, output_file
+    return False, func()

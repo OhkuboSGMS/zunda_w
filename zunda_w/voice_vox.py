@@ -7,6 +7,7 @@ import time
 from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import partial
 from itertools import chain
 from pathlib import Path
 from typing import Sequence, Generator, List, Optional, TypedDict, Dict, Iterator, Tuple
@@ -67,7 +68,16 @@ def _request_and_write(filename: str, synth_payload, query_data) -> Optional[str
     return None
 
 
-def synthesis(text: str, ouput_dir: str, speaker=1, max_retry=20, query: VoiceVoxProfile = None):
+def synthesis(text: str, output_dir: str, speaker=1, max_retry=20, query: VoiceVoxProfile = None):
+    """
+    voicevoxにて合成音声を出力
+    :param text:
+    :param output_dir:
+    :param speaker:
+    :param max_retry:
+    :param query:
+    :return:
+    """
     # audio_query
     query_payload = {"text": text, "speaker": speaker}
     for query_i in range(max_retry):
@@ -78,34 +88,58 @@ def synthesis(text: str, ouput_dir: str, speaker=1, max_retry=20, query: VoiceVo
             break
         time.sleep(1)
     else:
-        raise ConnectionError("リトライ回数が上限に到達しました。 audio_query : ", ouput_dir, "/", text[:30], r.text)
+        raise ConnectionError("リトライ回数が上限に到達しました。 audio_query : ", output_dir, "/", text[:30], r.text)
 
     # synthesis
     synth_payload = {"speaker": speaker}
     query_data = replace_query(query_data, query)
     # リクエストパラメータからキャッシュ値を計算
     cache_hash: str = str(concat_hash([dict_hash(query_payload)]))
-    output_file = os.path.join(ouput_dir, f'{cache_hash}.wav')
+    output_file = os.path.join(output_dir, f'{cache_hash}.wav')
 
     for synth_i in range(max_retry):
-        output_file_name = cached_file(output_file, lambda: _request_and_write(output_file, synth_payload, query_data))
+        cached, output_file_name = cached_file(output_file,
+                                               lambda: _request_and_write(output_file, synth_payload, query_data))
         if output_file_name is not None:
-            return f'{text} -> {output_file_name} '
+            logger.debug(f'{text} ->{"[cache] " if cached else ""} {output_file_name} ')
+            return output_file_name
     else:
-        raise ConnectionError("リトライ回数が上限に到達しました。 synthesis : ", ouput_dir, "/", text[:30], r, text)
+        raise ConnectionError("リトライ回数が上限に到達しました。 synthesis : ", output_dir, "/", text[:30], r, text)
 
 
 def output_path(idx: int, root: str) -> str:
     return os.path.join(root, f"audio_{idx :05d}.wav")
 
 
-def read_output_waves(wave_dir: str) -> Generator[AudioSegment, None, None]:
+def read_output_waves(wave_files: Sequence[str]) -> Generator[AudioSegment, None, None]:
+    for src in wave_files:
+        yield AudioSegment.from_file(src)
+
+
+def read_output_waves_from_dir(wave_dir: str) -> Generator[AudioSegment, None, None]:
+    """
+    wave_dirから名前順でファイルを取得
+
+    :param wave_dir:
+    :return: Generator[AudioSegment]
+    """
     # os.listdirに順序性は保証されていないのでソート
+    # return read_output_waves(map(lambda src: os.path.join(wave_dir, src), sorted(os.listdir(wave_dir))))
     for src in sorted(os.listdir(wave_dir)):
         yield AudioSegment.from_file(os.path.join(wave_dir, src))
 
 
-def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile):
+def text_to_speech_order(contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile) -> Sequence[
+    str]:
+    with ThreadPoolExecutor() as executor:
+        results = []
+        for result in executor.map(partial(synthesis, output_dir=output_dir, speaker=speaker, query=query), contents):
+            logger.debug(result)
+            results.append(result)
+    return results
+
+
+def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile) -> str:
     """
     VoiceVoxローカルサーバに対してリクエストを投げてttsを実行.
 
@@ -113,7 +147,7 @@ def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query
     :param speaker:
     :param output_dir:
     :param query:
-    :return:
+    :return: 出力したフォルダ
     """
     with ThreadPoolExecutor() as executor:
         futures = []
@@ -133,7 +167,7 @@ def run(srt_file: str, root_dir: str, speaker: int = 1, query: VoiceVoxProfile =
 
     subtitles = srt.parse(Path(srt_file).read_text(encoding='utf-8'))
     subtitles = list(map(lambda x: x.content, subtitles))
-    return text_to_speech(subtitles, speaker, str(output_dir), query)
+    return text_to_speech_order(subtitles, speaker, str(output_dir), query)
 
 
 @dataclass_json
