@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import List, Iterator, Any, Optional, Tuple
 
+import srt
 from classopt import classopt, config
 from loguru import logger
 from pydub import AudioSegment
@@ -132,7 +133,8 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
             compose.playback()
         # 音声は位置
         logger.debug('arrange audio')
-        # TODO 再構成しなおしたsrtファイルを生成　-> https://srt.readthedocs.io/en/latest/api.html#srt.compose
+        logger.debug(f'export arrange srt to \'{Path(arg.output).with_suffix(".srt")}')
+        Path(arg.output).with_suffix('.srt').write_text(srt.compose(compose.srt, reindex=False), encoding='UTF-8')
         arrange_sound: AudioSegment = edit.arrange(compose)
         logger.debug(f'export arrange audio to \'{arg.output}\'')
         arrange_sound.export(arg.output)
