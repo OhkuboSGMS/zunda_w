@@ -9,7 +9,7 @@ import srt
 from pydub import AudioSegment
 from srt import Subtitle
 
-from zunda_w.voice_vox import read_output_waves
+from zunda_w.voice_vox import read_output_waves_from_dir, read_output_waves
 from zunda_w.words import WordFilter
 
 
@@ -34,22 +34,25 @@ class SpeakerCompose:
         return datetime.timedelta(milliseconds=sum(map(lambda x: len(x.audio), self.unit)))
 
 
-def _parse_with_id(srt_file_path: str, id: int, encoding: str, wave_path: str) -> List[SpeakerUnit]:
+
+def _parse_with_id(srt_file_path: str, id: int, encoding: str, wave_paths: Sequence[str]) -> List[SpeakerUnit]:
     subtitles = list(srt.parse(Path(srt_file_path).read_text(encoding=encoding)))
     for s in subtitles:
         s.speaker = id
 
-    audio = list(read_output_waves(wave_path))
+    audio = list(read_output_waves(wave_paths))
     return [SpeakerUnit(s, a) for s, a in zip(subtitles, audio)]
 
 
-def merge(srt_files: Sequence[str], tts_dirs: Sequence[str], encoding='UTF-8',
+def merge(srt_files: Sequence[str], tts_files: List[Sequence[str]], encoding='UTF-8',
           word_filter: WordFilter = None) -> SpeakerCompose:
     """
     SubtitleとAudiosを読み込み，時間順にソートする
+
+    :return 合成結果のインスタンス
     """
     units: List[SpeakerUnit] = list(chain.from_iterable(
-        map(lambda x: _parse_with_id(x[1][0], x[0], encoding, x[1][1]), enumerate(zip(srt_files, tts_dirs)))))
+        map(lambda x: _parse_with_id(x[1][0], x[0], encoding, x[1][1]), enumerate(zip(srt_files, tts_files)))))
     units.sort(key=lambda s: s.subtitle.start)
     if word_filter:
         units = list(filter(lambda unit: word_filter.is_exclude(unit.subtitle.content), units))

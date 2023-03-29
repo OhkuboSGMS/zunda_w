@@ -9,7 +9,9 @@ def file_hash(path: Union[str, Path], hash_fun=hashlib.md5) -> str:
         return hash_fun(fp.read()).hexdigest()
 
 
-def text_hash(content: bytes, hash_fun=hashlib.md5) -> str:
+def text_hash(content: Union[bytes, str], hash_fun=hashlib.md5) -> str:
+    if type(content) == str:
+        content = content.encode()
     return hash_fun(content).hexdigest()
 
 

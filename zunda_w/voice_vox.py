@@ -2,25 +2,25 @@ from __future__ import annotations
 
 import json
 import os
-import platform
 import subprocess
 import time
 from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import partial
 from itertools import chain
 from pathlib import Path
-from typing import Sequence, Generator, List, Union, Optional, TypedDict, Dict, Iterator, Tuple
+from typing import Sequence, Generator, List, Optional, TypedDict, Dict, Iterator, Tuple
 
-import py7zr
 import requests
 import srt
 from dataclasses_json import dataclass_json
 from loguru import logger
 from pydub import AudioSegment
 
-from zunda_w.download import cache_download_from_github
-from zunda_w.voicevox_download_link import _engines, _engines_sha256
+from zunda_w.cache import cached_file
+from zunda_w.download_voicevox import extract_engine
+from zunda_w.hash import concat_hash, dict_hash
 
 # TODO ポート番号の仕様チェック
 ROOT_URL = 'http://localhost:50021'
@@ -48,71 +48,36 @@ def replace_query(src_query: Dict, trt_query: Dict) -> Dict:
     return ret_query
 
 
-def _download_engine(urls: List[str], file_hash: List[str], cache_dir: str):
-    """
-    voicevox-engineをダウンロード.
-    ダウンロード後解凍
-    .engine/windows/ .7zip ,exe folder
-    """
-    assert len(urls) == len(file_hash)
-    for url, h in zip(urls, file_hash):
-        logger.debug(f'Download: {url}')
-        success, save_path = cache_download_from_github(url, h, cache_dir, force_download=False)
-        if not success:
-            raise IOError(f'URL:{url} can\'t download')
-        yield save_path
-
-
-def _extract_multipart(archives: List[Union[str, Path]], directory: str):
-    concat_file = 'concat.7z'
-    Path(directory).mkdir(exist_ok=True, parents=True)
-    logger.debug('Concat multipart files')
-    with open(concat_file, 'wb') as outfile:
-        for f in archives:
-            with open(f, 'rb') as infile:
-                outfile.write(infile.read())
-
-    logger.debug(f'Extract: {concat_file}')
-    with py7zr.SevenZipFile(concat_file, mode='r') as z:
-        z.extractall(directory)
-    os.unlink(concat_file)
-    return directory
-
-
-def extract_engine(root_dir: str = '.engine', directory: str = 'voicevox', dry_run: bool = False) -> Optional[str]:
-    """
-    voicevox-engineをダウンロード.ファイルに展開
-    :param root_dir:
-    :param directory:
-    :param dry_run:実際にダウンロード等は行わず，実行可能かのみチェックする
-    :return:
-    """
-    system = platform.system()
-    if system not in _engines.keys():
-        raise NotImplementedError(system)
-    root_dir = Path(root_dir).joinpath(system)
-    root_dir.mkdir(exist_ok=True, parents=True)
-    exe_dir = root_dir.joinpath(directory)
-    # check already extracted
-    exe_path = list(exe_dir.glob('**/run.exe'))
-    if exe_dir and len(exe_path) == 1:
-        return str(exe_path[0])
-    # download and extract exe
-    else:
-        if dry_run:
-            return None
-        logger.debug(f'Download voicevox-engine from github　-> {root_dir}')
-        archives = list(_download_engine(_engines[system], _engines_sha256[system], str(root_dir)))
-        exe_dir = _extract_multipart(archives, exe_dir)
-        exe_path = list(Path(exe_dir).glob('**/run.exe'))
-        return str(exe_path[0])
-
-
 def launch_voicevox_engine(exe_path: str) -> subprocess.Popen:
     return subprocess.Popen([exe_path, '--use_gpu'], stdout=subprocess.DEVNULL)
 
 
-def synthesis(text: str, filename: str, speaker=1, max_retry=20, query: VoiceVoxProfile = None):
+def _request_and_write(filename: str, synth_payload, query_data) -> Optional[str]:
+    r = requests.post(f"{ROOT_URL}/synthesis", params=synth_payload,
+                      data=json.dumps(query_data), timeout=(10.0, 300.0))
+    if r.status_code == 200:
+        # 別スレッドで既に保存されている可能性も考慮.
+        if os.path.exists(filename):
+            return filename
+
+        with open(filename, "wb") as fp:
+            fp.write(r.content)
+            fp.flush()
+            os.fsync(fp.fileno())
+        return filename
+    return None
+
+
+def synthesis(text: str, output_dir: str, speaker=1, max_retry=20, query: VoiceVoxProfile = None):
+    """
+    voicevoxにて合成音声を出力
+    :param text:
+    :param output_dir:
+    :param speaker:
+    :param max_retry:
+    :param query:
+    :return:
+    """
     # audio_query
     query_payload = {"text": text, "speaker": speaker}
     for query_i in range(max_retry):
@@ -123,44 +88,77 @@ def synthesis(text: str, filename: str, speaker=1, max_retry=20, query: VoiceVox
             break
         time.sleep(1)
     else:
-        raise ConnectionError("リトライ回数が上限に到達しました。 audio_query : ", filename, "/", text[:30], r.text)
+        raise ConnectionError("リトライ回数が上限に到達しました。 audio_query : ", output_dir, "/", text[:30], r.text)
 
     # synthesis
     synth_payload = {"speaker": speaker}
     query_data = replace_query(query_data, query)
+    # リクエストパラメータからキャッシュ値を計算
+    cache_hash: str = str(concat_hash([dict_hash(query_payload)]))
+    output_file = os.path.join(output_dir, f'{cache_hash}.wav')
+
     for synth_i in range(max_retry):
-        r = requests.post(f"{ROOT_URL}/synthesis", params=synth_payload,
-                          data=json.dumps(query_data), timeout=(10.0, 300.0))
-        if r.status_code == 200:
-            with open(filename, "wb") as fp:
-                fp.write(r.content)
-            return f'{text} -> {filename} '
+        cached, output_file_name = cached_file(output_file,
+                                               lambda: _request_and_write(output_file, synth_payload, query_data))
+        if output_file_name is not None:
+            logger.debug(f'{text} ->{"[cache] " if cached else ""} {output_file_name} ')
+            return output_file_name
     else:
-        raise ConnectionError("リトライ回数が上限に到達しました。 synthesis : ", filename, "/", text[:30], r, text)
+        raise ConnectionError("リトライ回数が上限に到達しました。 synthesis : ", output_dir, "/", text[:30], r, text)
 
 
 def output_path(idx: int, root: str) -> str:
     return os.path.join(root, f"audio_{idx :05d}.wav")
 
 
-def read_output_waves(wave_dir: str) -> Generator[AudioSegment, None, None]:
+def read_output_waves(wave_files: Sequence[str]) -> Generator[AudioSegment, None, None]:
+    for src in wave_files:
+        yield AudioSegment.from_file(src)
+
+
+def read_output_waves_from_dir(wave_dir: str) -> Generator[AudioSegment, None, None]:
+    """
+    wave_dirから名前順でファイルを取得
+
+    :param wave_dir:
+    :return: Generator[AudioSegment]
+    """
     # os.listdirに順序性は保証されていないのでソート
+    # return read_output_waves(map(lambda src: os.path.join(wave_dir, src), sorted(os.listdir(wave_dir))))
     for src in sorted(os.listdir(wave_dir)):
         yield AudioSegment.from_file(os.path.join(wave_dir, src))
 
 
-def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile):
+def text_to_speech_order(contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile) -> Sequence[
+    str]:
+    with ThreadPoolExecutor() as executor:
+        results = []
+        for result in executor.map(partial(synthesis, output_dir=output_dir, speaker=speaker, query=query), contents):
+            logger.debug(result)
+            results.append(result)
+    return results
+
+
+def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile) -> str:
+    """
+    VoiceVoxローカルサーバに対してリクエストを投げてttsを実行.
+
+    :param contents:
+    :param speaker:
+    :param output_dir:
+    :param query:
+    :return: 出力したフォルダ
+    """
     with ThreadPoolExecutor() as executor:
         futures = []
         for i, line in enumerate(contents):
-            futures.append(executor.submit(synthesis, line, output_path(i, output_dir), speaker=speaker, query=query))
+            futures.append(executor.submit(synthesis, line, output_dir, speaker=speaker, query=query))
         for result in as_completed(futures):
             logger.debug(result.result())
     return output_dir
 
 
-def run(srt_file: str, root_dir: str, speaker: int = 1, query: VoiceVoxProfile = None,
-        output_dir: str = '.tts'):
+def run(srt_file: str, root_dir: str, speaker: int = 1, query: VoiceVoxProfile = None, output_dir: str = '.tts'):
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -169,7 +167,7 @@ def run(srt_file: str, root_dir: str, speaker: int = 1, query: VoiceVoxProfile =
 
     subtitles = srt.parse(Path(srt_file).read_text(encoding='utf-8'))
     subtitles = list(map(lambda x: x.content, subtitles))
-    return text_to_speech(subtitles, speaker, str(output_dir), query)
+    return text_to_speech_order(subtitles, speaker, str(output_dir), query)
 
 
 @dataclass_json
