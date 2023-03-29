@@ -5,6 +5,7 @@ from typing import List, Iterator, Any, Optional, Tuple
 
 from classopt import classopt, config
 from loguru import logger
+from pydub import AudioSegment
 
 from zunda_w import download_voicevox
 from zunda_w import edit, silent, voice_vox, transcribe_non_silence_srt, transcribe_with_config, file_hash, \
@@ -37,6 +38,7 @@ class Options:
     ostt: bool = False
     otts: bool = False
     show_speaker: bool = False
+    playback: bool = False
 
     @property
     def data_dir(self) -> str:
@@ -97,13 +99,18 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
             logger.debug('speech to text')
             # オリジナル音声の用意
             if arg.no_detect_silence:
-                stt_file = list(transcribe_with_config([original_audio], whisper_profile, root_dir=cache_dir))[0]
+                # 文字起こし
+                stt_file = list(transcribe_with_config([original_audio], whisper_profile,
+                                                       root_dir=cache_dir,
+                                                       meta_data=str(speaker_id)
+                                                       ))[0]
             # オリジナル音声の無音区間を切り抜き
             else:
                 # Tuple[meta],Tuple[audio]
                 meta, silent_audio = silent.divide_by_silence(original_audio, root_dir=cache_dir)
                 # 切り抜き音声から文字おこし
-                stt_file = transcribe_non_silence_srt(silent_audio, meta, whisper_profile, cache_dir)
+                stt_file = transcribe_non_silence_srt(silent_audio, meta, whisper_profile, cache_dir,
+                                                      meta_data=str(speaker_id))
             yield 'Speech to Text(Whisper)', stt_file
             logger.debug('text to speech')
             # voicevoxによる音声合成
@@ -120,9 +127,13 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         # 相槌をある程度フィルタリングする
         compose: SpeakerCompose = merge(stt_files, tts_file_list, word_filter=word_filter)
         yield 'Merge Audio Files', compose
+        if arg.playback:
+            logger.debug('playback sort audio')
+            compose.playback()
         # 音声は位置
         logger.debug('arrange audio')
-        arrange_sound = edit.arrange(compose)
+        # TODO 再構成しなおしたsrtファイルを生成　-> https://srt.readthedocs.io/en/latest/api.html#srt.compose
+        arrange_sound: AudioSegment = edit.arrange(compose)
         logger.debug(f'export arrange audio to \'{arg.output}\'')
         arrange_sound.export(arg.output)
         logger.success('finish process')

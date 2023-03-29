@@ -3,10 +3,11 @@ from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
-from typing import Sequence, List, Callable
+from typing import Sequence, List, Callable, Any, Optional
 
 import srt
 from pydub import AudioSegment
+from pydub.playback import play
 from srt import Subtitle
 
 from zunda_w.voice_vox import read_output_waves_from_dir, read_output_waves
@@ -33,6 +34,12 @@ class SpeakerCompose:
         """
         return datetime.timedelta(milliseconds=sum(map(lambda x: len(x.audio), self.unit)))
 
+    def __str__(self) -> str:
+        return '\n'.join(map(str, self.unit))
+
+    def playback(self):
+        for unit in self.unit:
+            play(unit.audio)
 
 
 def _parse_with_id(srt_file_path: str, id: int, encoding: str, wave_paths: Sequence[str]) -> List[SpeakerUnit]:
@@ -58,3 +65,22 @@ def merge(srt_files: Sequence[str], tts_files: List[Sequence[str]], encoding='UT
         units = list(filter(lambda unit: word_filter.is_exclude(unit.subtitle.content), units))
     time_length = units[-1].subtitle.end
     return SpeakerCompose(units, time_length)
+
+
+def write_srt_with_meta(srt_path: Path, meta_data: Any = '', output_path: Optional[Path] = None,
+                        encoding='UTF-8') -> Path:
+    """
+    既存のsrtファイルにmetaデータを一律で設定して再度書き込む
+    :param srt_path:
+    :param meta_data:
+    :param output_path:
+    :param encoding:
+    :return:
+    """
+    subtitles = list(srt.parse(srt_path.read_text(encoding=encoding)))
+    for s in subtitles:
+        s.proprietary = str(meta_data)
+    output_path = output_path if output_path else srt_path
+
+    output_path.write_text(srt.compose(subtitles), encoding=encoding)
+    return output_path

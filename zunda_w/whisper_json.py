@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Literal, Iterator, Dict, Sequence
+from typing import List, Literal, Iterator, Dict, Sequence, Any
 
 import torch
 import whisper
@@ -11,6 +11,7 @@ from tqdm import tqdm
 from whisper import Whisper
 from whisper.utils import write_srt
 
+from zunda_w import srt_ops
 from zunda_w.silent import Segment
 from zunda_w.util import text_hash
 
@@ -67,19 +68,22 @@ def transcribe_non_silence(wave_files: List[str], meta_files: List[str], profile
 
 
 def transcribe_non_silence_srt(wave_files: Sequence[str], meta_files: Sequence[str], profile: WhisperProfile,
-                               root_dir: str = os.curdir, output_dir: str = '.stt') -> str:
+                               root_dir: str = os.curdir, output_dir: str = '.stt', meta_data: Any = '') -> str:
     """
     無音区間を切り抜いた音声ファイル列からsrtファイルを生成．
+
     :param wave_files:
     :param meta_files:
     :param profile:
     :param root_dir:
     :param output_dir:
+    :param meta_data
     :return:
     """
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
-    file_name = text_hash(profile.to_json().encode(encoding='UTF-8'))
+    encoding = 'UTF-8'
+    file_name = text_hash(profile.to_json().encode(encoding=encoding))
     output_srt_path = output_dir.joinpath(file_name).with_suffix('.srt')
     logger.debug(f'srt path{output_srt_path} hash:{profile.__hash__()}')
     if output_srt_path.exists():
@@ -89,23 +93,27 @@ def transcribe_non_silence_srt(wave_files: Sequence[str], meta_files: Sequence[s
     for result in transcribe_non_silence(wave_files, meta_files, profile):
         srts.extend(result)
 
-    with open(output_srt_path, "w", encoding="UTF-8") as srt:
-        write_srt(srts, file=srt)
+    with open(output_srt_path, "w", encoding=encoding) as srt_file:
+        write_srt(srts, file=srt_file)
+    if meta_data:
+        srt_ops.write_srt_with_meta(output_srt_path, meta_data, encoding=encoding)
     return str(output_srt_path)
 
 
 def transcribe_with_config(wave_files: List[str], profile: WhisperProfile, root_dir: str = os.curdir,
-                           output_dir: str = '.stt', close_model: bool = False) -> List[str]:
+                           output_dir: str = '.stt', close_model: bool = False, meta_data: Any = '') -> List[str]:
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
     model = whisper.load_model(profile.model) if profile.model not in _model_cache else _model_cache[profile.model]
-
+    encoding = 'UTF-8'
     for audio_file in tqdm(wave_files, desc='Whisper Speech to Text'):
         file_name = Path(audio_file).stem
         result = _transcribe(model, profile, audio_file)
         output_srt_path = output_dir.joinpath(file_name).with_suffix('.srt')
-        with open(output_srt_path, "w", encoding="UTF-8") as srt:
-            write_srt(result["segments"], file=srt)
+        with open(output_srt_path, "w", encoding=encoding) as srt_file:
+            write_srt(result["segments"], file=srt_file)
+        if meta_data:
+            srt_ops.write_srt_with_meta(output_srt_path, meta_data, encoding=encoding)
         yield output_srt_path
 
     if close_model:
