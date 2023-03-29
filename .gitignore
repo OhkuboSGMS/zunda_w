@@ -127,3 +127,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+/COEIROINK-GPU-v.1.6.0/

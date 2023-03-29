@@ -49,6 +49,7 @@ def replace_query(src_query: Dict, trt_query: Dict) -> Dict:
 
 
 def launch_voicevox_engine(exe_path: str) -> subprocess.Popen:
+    logger.debug(f'[VOICEVOX] Launch {exe_path} as subprocess')
     return subprocess.Popen([exe_path, '--use_gpu'], stdout=subprocess.DEVNULL)
 
 
@@ -158,15 +159,24 @@ def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query
     return output_dir
 
 
-def run(srt_file: str, root_dir: str, speaker: int = 1, query: VoiceVoxProfile = None, output_dir: str = '.tts'):
+def run(srt_file: Union[str, List[srt.Subtitle]], root_dir: str, speaker: int = 1, query: VoiceVoxProfile = None,
+        output_dir: str = '.tts'):
+    """
+    srt(text) to speech を実行.
+    出力した音声ファイルはsrtファイルの順番と一致する
+    """
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if query is None:
         query = VoiceVoxProfile()
 
-    subtitles = srt.parse(Path(srt_file).read_text(encoding='utf-8'))
+    if type(srt_file) == str:
+        subtitles = srt.parse(Path(srt_file).read_text(encoding='utf-8'))
+    else:
+        subtitles = srt_file
     subtitles = list(map(lambda x: x.content, subtitles))
+
     return text_to_speech_order(subtitles, speaker, str(output_dir), query)
 
 
