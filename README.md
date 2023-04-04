@@ -20,7 +20,7 @@ pip install git+https://github.com/OhkuboSGMS/zunda-ASMR
 ```
 # Run
 ```
-zunda <audio_file> --output <output_file_name>
+zunda --audio_files <audio_file> --output <output_file_name>
 ```
 # Author
 
