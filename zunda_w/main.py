@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import List, Iterator, Any, Optional, Tuple
 
@@ -22,7 +23,7 @@ DEFAULT_SPEAKER_IDs = [3, 2, 8, 16]
 
 @classopt(default_long=True)
 class Options:
-    audio_files: List[str] = config(long=False, short=False, nargs='+', type=str)
+    audio_files: List[str] = []
     output: str = 'arrange.wav'
     speakers: List[int] = DEFAULT_SPEAKER_IDs
     default_profile: WhisperProfile = WhisperProfile()
@@ -40,6 +41,8 @@ class Options:
     otts: bool = False
     show_speaker: bool = False
     playback: bool = False
+    # clear cache (dont run script)
+    clear: bool = False
 
     @property
     def data_dir(self) -> str:
@@ -68,6 +71,10 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     voicevox_process = None
     cache_tts = '.tts'
     logger.success('start process')
+    if arg.clear:
+        logger.info(f'Clear Cache Files @{arg.data_cache_dir}')
+        shutil.rmtree(arg.data_cache_dir, ignore_errors=True)
+        return
     if arg.audio_files is None:
         raise Exception('Pass Audios Files')
     try:
