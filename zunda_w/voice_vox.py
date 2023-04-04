@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import partial
 from itertools import chain
 from pathlib import Path
-from typing import Sequence, Generator, List, Optional, TypedDict, Dict, Iterator, Tuple
+from typing import Sequence, Generator, List, Optional, TypedDict, Dict, Iterator, Tuple, Union
 
 import requests
 import srt

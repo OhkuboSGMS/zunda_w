@@ -9,8 +9,8 @@ from dataclasses_json import dataclass_json
 from loguru import logger
 from tqdm import tqdm
 from whisper import Whisper
-from whisper.utils import write_srt
 
+from zunda_w.whisers_util import write_srt
 from zunda_w import srt_ops
 from zunda_w.silent import Segment
 from zunda_w.util import text_hash

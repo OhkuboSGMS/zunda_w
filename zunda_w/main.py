@@ -26,7 +26,7 @@ class Options:
     output: str = 'arrange.wav'
     speakers: List[int] = DEFAULT_SPEAKER_IDs
     default_profile: WhisperProfile = WhisperProfile()
-    profile_json: str = 'profile_json'
+    profile_json: str = 'profile.json'
     default_v_profile: VoiceVoxProfile = VoiceVoxProfile()
     v_profile_json: str = 'v_profile.json'
     speaker_json: str = 'speakers.json'
