@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
-from typing import Sequence, List, Callable, Any, Optional
+from typing import Sequence, List, Callable, Any, Optional, Tuple
 
 import srt
 from pydub import AudioSegment
@@ -22,7 +22,7 @@ class SpeakerUnit:
 
 @dataclass
 class SpeakerCompose:
-    unit: List[SpeakerUnit]
+    unit: Tuple[SpeakerUnit]
     # whisper計測の会話総時間
     n_length: datetime.timedelta
 
@@ -33,6 +33,10 @@ class SpeakerCompose:
         :return:
         """
         return datetime.timedelta(milliseconds=sum(map(lambda x: len(x.audio), self.unit)))
+
+    @cached_property
+    def srt(self) -> Sequence[srt.Subtitle]:
+        return list(map(lambda u: u.subtitle, self.unit))
 
     def __str__(self) -> str:
         return '\n'.join(map(str, self.unit))
