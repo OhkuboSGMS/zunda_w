@@ -23,9 +23,10 @@ _model_cache: Dict[str, str] = {}
 class WhisperProfile:
     model: Literal['tiny', 'small', 'base', 'medium', 'large'] = 'small'
     language: str = 'ja'
+    prompt: str = ''
 
 
-def _transcribe(model: Whisper, profile: WhisperProfile, audio_file: str):
+def _transcribe(model: Whisper, profile: WhisperProfile, audio_file: str, ):
     # match parameters whisper CLI default(best_of,fp16,beam_size,suppress_tokens...)
     return model.transcribe(audio=audio_file,
                             verbose=True,
@@ -34,7 +35,8 @@ def _transcribe(model: Whisper, profile: WhisperProfile, audio_file: str):
                             best_of=5,
                             beam_size=5,
                             suppress_tokens="-1",
-                            logprob_threshold=None
+                            logprob_threshold=None,
+                            initial_prompt=profile.prompt
                             )
 
 

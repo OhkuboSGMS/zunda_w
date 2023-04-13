@@ -1,11 +1,13 @@
+import dataclasses
 import json
 import os
 import shutil
+from functools import cached_property
 from pathlib import Path
 from typing import List, Iterator, Any, Optional, Tuple
 
 import srt
-from classopt import classopt, config
+from classopt import classopt
 from loguru import logger
 from pydub import AudioSegment
 
@@ -23,7 +25,10 @@ DEFAULT_SPEAKER_IDs = [3, 2, 8, 16]
 
 @classopt(default_long=True)
 class Options:
+    # 文字起こしする音声ファイル
     audio_files: List[str] = []
+    # 既存のsrtファイル audio_filesと二者択一
+    srt_file: Optional[str] = None
     output: str = 'arrange.wav'
     speakers: List[int] = DEFAULT_SPEAKER_IDs
     default_profile: WhisperProfile = WhisperProfile()
@@ -32,6 +37,7 @@ class Options:
     v_profile_json: str = 'v_profile.json'
     speaker_json: str = 'speakers.json'
     word_filter: str = 'filter_word.txt'
+    prompt: str = 'prompt.txt'
     no_detect_silence: bool = False
     cache_root_dir: str = os.curdir
     data_cache_dir: str = '.cache'
@@ -66,6 +72,10 @@ class Options:
         else:
             return [self.default_v_profile for i in range(n)]
 
+    @cached_property
+    def prompt_text(self) -> str:
+        return Path(self.prompt).read_text(encoding='UTF-8')
+
 
 def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     voicevox_process = None
@@ -97,6 +107,8 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         audio_files = arg.audio_files
         speakers = arg.speakers
         whisper_profile = arg.whisper_profile
+        whisper_profile = dataclasses.replace(whisper_profile, prompt=arg.prompt_text)
+        logger.debug(f'Prompt:: {whisper_profile.prompt}')
         voicevox_profiles = arg.voicevox_profiles(len(audio_files))
         word_filter = WordFilter(arg.word_filter)
         stt_files = []
