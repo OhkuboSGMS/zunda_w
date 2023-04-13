@@ -242,6 +242,29 @@ def get_speaker_info(speaker_id: int, data: List) -> str:
         return _id_dict[speaker_id]
 
 
+def get_version():
+    return requests.get(f'{ROOT_URL}/version')
+
+
+def wait_until_voicevox_ready(timeout: float = 30):
+    """
+    /version で導通確認を行う
+    :param timeout:
+    :return:
+    """
+    start = time.perf_counter()
+    print(time.perf_counter() - start)
+    while (time.perf_counter() - start) < timeout:
+        try:
+            version = get_version()
+            if version.status_code == 200:
+                # 接続確認できたので終了
+                break
+        except Exception as e:
+            print(e)
+            time.sleep(1)
+
+
 def add_word(word: str, pronunce: str, accent_type: int = 1):
     query_payload = {"surface": word, "pronunciation": pronunce, "accent_type": accent_type}
 
