@@ -9,7 +9,8 @@ def cli():
     logger.info('Parameters:')
     logger.info(arg)
     for msg, data in main(arg):
-        print(msg, data)
+        logger.debug(msg)
+        logger.debug(data)
 
 
 if __name__ == '__main__':
