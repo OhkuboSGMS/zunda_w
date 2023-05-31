@@ -254,15 +254,15 @@ def wait_until_voicevox_ready(timeout: float = 30):
     :return:
     """
     start = time.perf_counter()
-    print(time.perf_counter() - start)
     while (time.perf_counter() - start) < timeout:
         try:
+            logger.debug('waiting...')
             version = get_version()
             if version.status_code == 200:
                 # 接続確認できたので終了
                 break
         except Exception as e:
-            print(f'waiting voicevox start...:{str(e)}')
+            logger.debug(f'waiting voicevox start...:{str(e)}')
             time.sleep(0.1)
 
 
@@ -283,7 +283,7 @@ def import_word_csv(csv_file: str, override: bool = True):
     word_map = parse_user_dict_from_csv(csv_file)
     r = requests.post(f"{ROOT_URL}/import_user_dict",
                       params={'override': override}, json=word_map)
-    if r.status_code == '204':
+    if r.status_code == 204:
         logger.success('Import Success')
     else:
         logger.warning(f'Something Wrong:{r.content}')
