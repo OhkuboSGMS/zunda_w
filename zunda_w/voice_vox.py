@@ -262,8 +262,8 @@ def wait_until_voicevox_ready(timeout: float = 30):
                 # 接続確認できたので終了
                 break
         except Exception as e:
-            print(e)
-            time.sleep(1)
+            print(f'waiting voicevox start...:{str(e)}')
+            time.sleep(0.1)
 
 
 def add_word(word: str, pronunce: str, accent_type: int = 1):

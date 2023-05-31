@@ -91,6 +91,7 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     try:
         # voicevox立ち上げ,フォルダが無ければダウンロードする.
         voicevox_process = voice_vox.launch_voicevox_engine(download_voicevox.extract_engine(root_dir=arg.engine_dir))
+        logger.debug('wait voicevox ')
         voice_vox.wait_until_voicevox_ready()
         yield 'Launch Voicevox', None
         voice_vox.import_word_csv(arg.user_dict)
