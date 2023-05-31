@@ -1,4 +1,5 @@
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Literal, Iterator, Dict, Sequence, Any
@@ -106,17 +107,24 @@ def transcribe_with_config(wave_files: List[str], profile: WhisperProfile, root_
                            output_dir: str = '.stt', close_model: bool = False, meta_data: Any = '') -> List[str]:
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
-    model = whisper.load_model(profile.model) if profile.model not in _model_cache else _model_cache[profile.model]
+    if profile.model not in _model_cache:
+        model = whisper.load_model(profile.model)
+        _model_cache[profile.model] = model
+    model = _model_cache[profile.model]
     encoding = 'UTF-8'
     for audio_file in tqdm(wave_files, desc='Whisper Speech to Text'):
         file_name = Path(audio_file).stem
-        result = _transcribe(model, profile, audio_file)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio = effects.normalize(AudioSegment.from_file(audio_file))
+            tmp_file_path = os.path.join(tmpdir, file_name)
+            audio.export(tmp_file_path)
+            result = _transcribe(model, profile, tmp_file_path)
         output_srt_path = output_dir.joinpath(file_name).with_suffix('.srt')
         with open(output_srt_path, "w", encoding=encoding) as srt_file:
             write_srt(result["segments"], file=srt_file)
         if meta_data:
             srt_ops.write_srt_with_meta(output_srt_path, meta_data, encoding=encoding)
-        yield output_srt_path
+        yield str(output_srt_path)
 
     if close_model:
         del model
