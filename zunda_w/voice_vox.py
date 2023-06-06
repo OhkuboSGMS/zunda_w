@@ -109,6 +109,10 @@ def synthesis(text: str, output_dir: str, speaker=1, max_retry=20, query: VoiceV
         raise ConnectionError("リトライ回数が上限に到達しました。 synthesis : ", output_dir, "/", text[:30], r, text)
 
 
+def synthesis_map(data, output_dir: str, query: VoiceVoxProfile):
+    return synthesis(data[0], data[1], output_dir=output_dir, query=query)
+
+
 def output_path(idx: int, root: str) -> str:
     return os.path.join(root, f"audio_{idx :05d}.wav")
 
@@ -131,11 +135,11 @@ def read_output_waves_from_dir(wave_dir: str) -> Generator[AudioSegment, None, N
         yield AudioSegment.from_file(os.path.join(wave_dir, src))
 
 
-def text_to_speech_order(contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile) -> Sequence[
-    str]:
+def text_to_speech_order(contents: Sequence[str], speaker: Sequence[int], output_dir: str, query: VoiceVoxProfile) -> \
+        Sequence[str]:
     with ThreadPoolExecutor() as executor:
         results = []
-        for result in executor.map(partial(synthesis, output_dir=output_dir, speaker=speaker, query=query), contents):
+        for result in executor.map(partial(synthesis_map, output_dir=output_dir, query=query), zip(contents, speaker)):
             logger.debug(result)
             results.append(result)
     return results
@@ -160,7 +164,9 @@ def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query
     return output_dir
 
 
-def run(srt_file: Union[str, List[srt.Subtitle]], root_dir: str, speaker: int = 1, query: VoiceVoxProfile = None,
+def run(srt_file: Union[str, Sequence[srt.Subtitle]], root_dir: str,
+        speaker: Union[int, Sequence[int]] = 1,
+        query: VoiceVoxProfile = None,
         output_dir: str = '.tts'):
     """
     srt(text) to speech を実行.
@@ -173,9 +179,14 @@ def run(srt_file: Union[str, List[srt.Subtitle]], root_dir: str, speaker: int = 
         query = VoiceVoxProfile()
 
     if type(srt_file) == str:
-        subtitles = srt.parse(Path(srt_file).read_text(encoding='utf-8'))
+        subtitles = list(srt.parse(Path(srt_file).read_text(encoding='utf-8')))
     else:
         subtitles = srt_file
+    if isinstance(speaker, Sequence):
+        assert len(speaker) == len(srt_file), 'speakersがリストの場合,srt_fileとspeakersの個数は一致しなければいけません'
+    else:
+        speaker = list(repeat(speaker, len(subtitles)))
+
     subtitles = list(map(lambda x: x.content, subtitles))
 
     return text_to_speech_order(subtitles, speaker, str(output_dir), query)
