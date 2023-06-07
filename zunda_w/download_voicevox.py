@@ -43,12 +43,14 @@ def _extract_multipart(archives: List[Union[str, Path]], directory: str):
     return directory
 
 
-def extract_engine(root_dir: str = '.engine', directory: str = 'voicevox', dry_run: bool = False) -> Optional[str]:
+def extract_engine(root_dir: str = '.engine', directory: str = 'voicevox', dry_run: bool = False,
+                   update: bool = False) -> Optional[str]:
     """
     voicevox-engineをダウンロード.ファイルに展開
     :param root_dir:
     :param directory:
     :param dry_run:実際にダウンロード等は行わず，実行可能かのみチェックする
+    :param update: ダウンロードの有無に関わらず，URLからダウンロードして展開する
     :return:
     """
     system = platform.system()
@@ -59,7 +61,7 @@ def extract_engine(root_dir: str = '.engine', directory: str = 'voicevox', dry_r
     exe_dir = root_dir.joinpath(directory)
     # check already extracted
     exe_path = list(exe_dir.glob('**/run.exe'))
-    if exe_dir and len(exe_path) == 1:
+    if not update and exe_dir and len(exe_path) == 1:
         return str(exe_path[0])
     # download and extract exe
     else:
