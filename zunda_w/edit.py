@@ -1,5 +1,5 @@
 import datetime
-from typing import Sequence
+from typing import Sequence, Iterator
 
 from pydub import AudioSegment
 from tqdm import tqdm
@@ -11,24 +11,32 @@ def millisecond(t: datetime.timedelta) -> float:
     return int(t.total_seconds() * 1000 + t.microseconds / 1000.0)
 
 
-def concatenate(wav_files: Sequence[str]) -> AudioSegment:
-    """
-    音声ファイルを順番に結合
-    """
+def concatenate(segment: Iterator[AudioSegment]) -> AudioSegment:
     empty = AudioSegment.empty()
-    for audio in wav_files:
-        seg = AudioSegment.from_file(audio)
-        empty += seg
+    for audio in segment:
+        empty += audio
     return empty
 
 
+def concatenate_from_file(wav_files: Iterator[str]) -> AudioSegment:
+    """
+    音声ファイルを順番に結合
+    """
+    return concatenate(map(AudioSegment.from_file, wav_files))
+
+
 def arrange(compose: SpeakerCompose) -> AudioSegment:
+    """
+    SpeakerComposeをAudioSegmentに再構成
+    :param compose:
+    :return:
+    """
     ms = millisecond(compose.audio_duration)
     empty = AudioSegment.silent(ms, 44100)
     next_sum = 0
     start_point = []
     zunda_duration = []
-    for unit in tqdm(compose.unit, desc='Audio composing', unit='wav'):
+    for unit in compose.unit:  # tqdm(compose.unit, desc='Audio composing', unit='wav'):
         seg = unit.audio
         srt = unit.subtitle
         srt_duration = millisecond((srt.end - srt.start))
@@ -41,24 +49,3 @@ def arrange(compose: SpeakerCompose) -> AudioSegment:
         next_sum += duration
         empty = empty.overlay(seg, position=start_ms)
     return empty
-
-
-# 合成音声と元音声の時間を比較 合成音声にスケールを合わせる．
-def main():
-    # オリジナル音声の用意
-    # whisperによる音声検出
-    sts_files =['sts/okubo_aligned.wav.srt', 'sts/matt_aligned_denoised.wav.srt']
-    # voicevoxによる音声合成
-    # srt,audioのソート
-    compose = merge(sts_files, root='tts')
-    # audios = sorted(Path('tts/okubo_aligned.wav').glob('*.wav'))[:10]
-    sound = arrange(compose)
-    sound.export('arrange.wav')
-    # empty = concatenate()
-    # empty.export('merge.wav')
-    # sound = AudioSegment.from_file('merge.wav')
-    # play(sound)
-
-
-if __name__ == '__main__':
-    main()

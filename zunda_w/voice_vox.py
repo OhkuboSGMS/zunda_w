@@ -6,9 +6,10 @@ import subprocess
 import time
 from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial
-from itertools import chain
+from itertools import chain, repeat
 from pathlib import Path
 from typing import Sequence, Generator, List, Optional, TypedDict, Dict, Iterator, Tuple, Union
 
@@ -54,6 +55,16 @@ def launch_voicevox_engine(exe_path: str) -> subprocess.Popen:
     return subprocess.Popen([exe_path, '--use_gpu'], stdout=subprocess.DEVNULL)
 
 
+@contextmanager
+def voicevox_engine(exe_path: str):
+    voicevox_process = launch_voicevox_engine(exe_path)
+    logger.debug('wait voicevox')
+    wait_until_voicevox_ready()
+    yield voicevox_process
+    voicevox_process.terminate()
+    voicevox_process.poll()
+
+
 def _request_and_write(filename: str, synth_payload, query_data) -> Optional[str]:
     r = requests.post(f"{ROOT_URL}/synthesis", params=synth_payload,
                       data=json.dumps(query_data), timeout=(10.0, 300.0))
@@ -70,7 +81,7 @@ def _request_and_write(filename: str, synth_payload, query_data) -> Optional[str
     return None
 
 
-def synthesis(text: str, output_dir: str, speaker=1, max_retry=20, query: VoiceVoxProfile = None):
+def synthesis(text: str, speaker: int, output_dir: str, max_retry=20, query: VoiceVoxProfile = None):
     """
     voicevoxにて合成音声を出力
     :param text:
@@ -109,6 +120,10 @@ def synthesis(text: str, output_dir: str, speaker=1, max_retry=20, query: VoiceV
         raise ConnectionError("リトライ回数が上限に到達しました。 synthesis : ", output_dir, "/", text[:30], r, text)
 
 
+def synthesis_map(data, output_dir: str, query: VoiceVoxProfile):
+    return synthesis(data[0], data[1], output_dir=output_dir, query=query)
+
+
 def output_path(idx: int, root: str) -> str:
     return os.path.join(root, f"audio_{idx :05d}.wav")
 
@@ -131,11 +146,11 @@ def read_output_waves_from_dir(wave_dir: str) -> Generator[AudioSegment, None, N
         yield AudioSegment.from_file(os.path.join(wave_dir, src))
 
 
-def text_to_speech_order(contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile) -> Sequence[
-    str]:
+def text_to_speech_order(contents: Sequence[str], speaker: Sequence[int], output_dir: str, query: VoiceVoxProfile) -> \
+        Sequence[str]:
     with ThreadPoolExecutor() as executor:
         results = []
-        for result in executor.map(partial(synthesis, output_dir=output_dir, speaker=speaker, query=query), contents):
+        for result in executor.map(partial(synthesis_map, output_dir=output_dir, query=query), zip(contents, speaker)):
             logger.debug(result)
             results.append(result)
     return results
@@ -160,7 +175,9 @@ def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query
     return output_dir
 
 
-def run(srt_file: Union[str, List[srt.Subtitle]], root_dir: str, speaker: int = 1, query: VoiceVoxProfile = None,
+def run(srt_file: Union[str, Sequence[srt.Subtitle]], root_dir: str,
+        speaker: Union[int, Sequence[int]] = 1,
+        query: VoiceVoxProfile = None,
         output_dir: str = '.tts'):
     """
     srt(text) to speech を実行.
@@ -173,10 +190,21 @@ def run(srt_file: Union[str, List[srt.Subtitle]], root_dir: str, speaker: int = 
         query = VoiceVoxProfile()
 
     if type(srt_file) == str:
-        subtitles = srt.parse(Path(srt_file).read_text(encoding='utf-8'))
+        subtitles = list(srt.parse(Path(srt_file).read_text(encoding='utf-8')))
     else:
         subtitles = srt_file
+    if isinstance(speaker, Sequence):
+        assert len(speaker) == len(srt_file), 'speakersがリストの場合,srt_fileとspeakersの個数は一致しなければいけません'
+    else:
+        speaker = list(repeat(speaker, len(subtitles)))
+
     subtitles = list(map(lambda x: x.content, subtitles))
+
+    # 読み上げように，無駄な空白をなくす
+    def non_empty(x: str) -> str:
+        return ''.join(filter(lambda c: c != ' ', x))
+
+    subtitles = list(map(non_empty, subtitles))
 
     return text_to_speech_order(subtitles, speaker, str(output_dir), query)
 
@@ -247,6 +275,19 @@ def get_version():
     return requests.get(f'{ROOT_URL}/version')
 
 
+def is_voicevox_launch(n_try: int = 5) -> bool:
+    """
+    voicevoxが立ち上がっているか確認
+    :param n_try:
+    :return:
+    """
+    version = get_version()
+    for i in range(n_try):
+        if version.status_code == 200:
+            return True
+    return False
+
+
 def wait_until_voicevox_ready(timeout: float = 30):
     """
     /version で導通確認を行う
@@ -254,16 +295,16 @@ def wait_until_voicevox_ready(timeout: float = 30):
     :return:
     """
     start = time.perf_counter()
-    print(time.perf_counter() - start)
     while (time.perf_counter() - start) < timeout:
         try:
+            logger.debug('waiting...')
             version = get_version()
             if version.status_code == 200:
                 # 接続確認できたので終了
                 break
         except Exception as e:
-            print(e)
-            time.sleep(1)
+            logger.debug(f'waiting voicevox start...:{str(e)}')
+            time.sleep(0.1)
 
 
 def add_word(word: str, pronunce: str, accent_type: int = 1):
@@ -283,7 +324,7 @@ def import_word_csv(csv_file: str, override: bool = True):
     word_map = parse_user_dict_from_csv(csv_file)
     r = requests.post(f"{ROOT_URL}/import_user_dict",
                       params={'override': override}, json=word_map)
-    if r.status_code == '204':
+    if r.status_code == 204:
         logger.success('Import Success')
     else:
         logger.warning(f'Something Wrong:{r.content}')

@@ -26,6 +26,19 @@ class SpeakerCompose:
     # whisper計測の会話総時間
     n_length: datetime.timedelta
 
+    @staticmethod
+    def from_srt(subtitles: Sequence[srt.Subtitle], tts_files: Sequence[str]):
+        """
+        srtファイルから合成音声を作成し，結合する場合にこのメソッドを使用する
+        :param subtitles:
+        :param tts_files:
+        :return:
+        """
+        assert len(subtitles) == len(tts_files)
+        compose = list(map(lambda x: SpeakerUnit(x[0], AudioSegment.from_file(x[1])), zip(subtitles, tts_files)))
+        last_end = subtitles[-1].end
+        return SpeakerCompose(tuple(compose), last_end)
+
     @cached_property
     def audio_duration(self) -> datetime.timedelta:
         """

@@ -14,7 +14,8 @@ from pydub import AudioSegment
 from zunda_w import download_voicevox
 from zunda_w import edit, silent, voice_vox, transcribe_non_silence_srt, transcribe_with_config, file_hash, \
     SpeakerCompose, merge, array_util, cache
-from zunda_w.util import try_json_parse
+from zunda_w.api import API
+from zunda_w.util import try_json_parse, write_srt, read_srt
 from zunda_w.voice_vox import VoiceVoxProfile, VoiceVoxProfiles
 from zunda_w.whisper_json import WhisperProfile
 from zunda_w.words import WordFilter
@@ -81,6 +82,7 @@ class Options:
 def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     voicevox_process = None
     cache_tts = '.tts'
+    cache_general_vv = '.cache/.voicevox'
     logger.success('start process')
     if arg.clear:
         logger.info(f'Clear Cache Files @{arg.data_cache_dir}')
@@ -91,6 +93,7 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     try:
         # voicevox立ち上げ,フォルダが無ければダウンロードする.
         voicevox_process = voice_vox.launch_voicevox_engine(download_voicevox.extract_engine(root_dir=arg.engine_dir))
+        logger.debug('wait voicevox')
         voice_vox.wait_until_voicevox_ready()
         yield 'Launch Voicevox', None
         voice_vox.import_word_csv(arg.user_dict)
@@ -115,6 +118,9 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         word_filter = WordFilter(arg.word_filter)
         stt_files = []
         tts_file_list: List[List[str]] = []
+        if len(audio_files) == 1 and Path(audio_files[0]).suffix == '.srt':
+            return API(cache_general_vv, profile=voicevox_profiles[0]) \
+                .srt_to_audio(audio_files[0], arg.output)
         for idx, (original_audio, speaker_id) in enumerate(zip(audio_files, speakers)):
             audio_hash = file_hash(original_audio)
             cache_dir = os.path.join(arg.data_dir, audio_hash)
@@ -155,7 +161,8 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         # 音声は位置
         logger.debug('arrange audio')
         logger.debug(f'export arrange srt to \'{Path(arg.output).with_suffix(".srt")}')
-        Path(arg.output).with_suffix('.srt').write_text(srt.compose(compose.srt, reindex=False), encoding='UTF-8')
+        write_srt(Path(arg.output).with_suffix('.srt'), compose.srt)
+
         arrange_sound: AudioSegment = edit.arrange(compose)
         logger.debug(f'export arrange audio to \'{arg.output}\'')
         arrange_sound.export(arg.output)

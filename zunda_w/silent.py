@@ -1,10 +1,11 @@
 import os.path
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, List
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 from loguru import logger
 from pydub import AudioSegment, silence
+from pydub import effects
 
 
 @dataclass_json
@@ -17,8 +18,10 @@ class Segment:
 def divide_by_silence(wave_file: str, min_silence_len=4000, seek_step=10, silence_thresh_down=-20,
                       min_length=500,
                       root_dir: str = os.curdir, output_dir: str = '.silence') -> Tuple[Tuple[str], Tuple[str]]:
-    print(f'divide by silence:{wave_file}')
+    logger.debug(f'divide by silence:{wave_file}')
     segment = AudioSegment.from_file(wave_file)
+    logger.debug('Effect : Normalize')
+    segment = effects.normalize(segment)
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -35,10 +38,10 @@ def divide_by_silence(wave_file: str, min_silence_len=4000, seek_step=10, silenc
     idx = 0
     for i, (s, e) in enumerate(result):
         duration = (e - s)
-        print(f'duration: {duration / 1000}s')
+        # print(f'duration: {duration / 1000}s')
         # 検出した音声が最小音声長(millisecond)より短いものは採用しない
         if duration < min_length:
-            print(f'skip audio :{i}')
+            # print(f'skip audio :{i}')
             continue
         logger.debug(
             f'[{idx:04d}] {int(s / 1000 / 60):02d}:{int(s / 1000 % 60):02d} -> {int(e / 1000 / 60):02d}:{int(e / 1000 % 60):02d}')
@@ -54,14 +57,3 @@ def divide_by_silence(wave_file: str, min_silence_len=4000, seek_step=10, silenc
         idx += 1
 
     return tuple(segments), tuple(audios)
-
-
-if __name__ == '__main__':
-    file = r"J:\PodCast\2022_10_22\align\02-okubo.wav"
-    si_files = list(map(str, sorted(Path('.silence').joinpath(Path(file).stem).glob('*.wav'))))
-    si_meta_files = list(sorted(Path('.silence').joinpath(Path(file).stem).glob('*.meta')))
-    print(si_files)
-    print(si_meta_files)
-    # srt = whisper_json.transcribe_non_silence_srt(si_files, si_meta_files, 'profile.json', file)
-    # print(srt)
-    # divide_by_silence(file, min_silence_len=5000)

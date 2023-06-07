@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from .edit import SpeakerCompose, concatenate
+from .edit import SpeakerCompose, concatenate_from_file
 from .silent import divide_by_silence, Segment
 from .srt_ops import SpeakerUnit, merge
 from .voice_vox import synthesis, launch_voicevox_engine, text_to_speech
