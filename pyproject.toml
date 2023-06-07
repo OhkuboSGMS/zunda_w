@@ -28,6 +28,7 @@ torch = [
 ]
 # poetry install で失敗するので追加(0.18.3が問題？)
 future ="0.18.2"
+voicevox-engine-user-dict = {git = "https://github.com/OhkuboSGMS/voicevox_engine_user_dict.git"}
 
 [build-system]
 requires = ["poetry-core"]

@@ -21,6 +21,7 @@ from pydub import AudioSegment
 from zunda_w.cache import cached_file
 from zunda_w.download_voicevox import extract_engine
 from zunda_w.hash import concat_hash, dict_hash
+from zunda_w.voicevox_user_dict import parse_user_dict_from_csv
 
 # TODO ポート番号の仕様チェック
 ROOT_URL = 'http://localhost:50021'
@@ -102,7 +103,7 @@ def synthesis(text: str, output_dir: str, speaker=1, max_retry=20, query: VoiceV
         cached, output_file_name = cached_file(output_file,
                                                lambda: _request_and_write(output_file, synth_payload, query_data))
         if output_file_name is not None:
-            logger.debug(f'{text} ->{"[cache] " if cached else ""} {output_file_name} ')
+            logger.debug(f'{text[:15].ljust(15)} ->{"[cache] " if cached else ""} {output_file_name} ')
             return output_file_name
     else:
         raise ConnectionError("リトライ回数が上限に到達しました。 synthesis : ", output_dir, "/", text[:30], r, text)
@@ -274,13 +275,15 @@ def add_word(word: str, pronunce: str, accent_type: int = 1):
         query_data = r.json()
 
 
-if __name__ == '__main__':
-    voicevox_process = None
-    try:
-        exe_path = extract_engine(root_dir='.test')
-        voicevox_process = launch_voicevox_engine(exe_path)
-
-    except KeyboardInterrupt:
-        if voicevox_process:
-            voicevox_process.terminate()
-            voicevox_process.poll()
+def import_word_csv(csv_file: str, override: bool = True):
+    logger.debug('Import User Dict to Voicevox')
+    if not os.path.exists(csv_file):
+        logger.warning(f'Not Found: user word dict : {csv_file}')
+        return
+    word_map = parse_user_dict_from_csv(csv_file)
+    r = requests.post(f"{ROOT_URL}/import_user_dict",
+                      params={'override': override}, json=word_map)
+    if r.status_code == '204':
+        logger.success('Import Success')
+    else:
+        logger.warning(f'Something Wrong:{r.content}')

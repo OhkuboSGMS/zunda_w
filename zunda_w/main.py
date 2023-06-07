@@ -38,6 +38,7 @@ class Options:
     speaker_json: str = 'speakers.json'
     word_filter: str = 'filter_word.txt'
     prompt: str = 'prompt.txt'
+    user_dict: str = 'user_dict.csv'
     no_detect_silence: bool = False
     cache_root_dir: str = os.curdir
     data_cache_dir: str = '.cache'
@@ -92,7 +93,7 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         voicevox_process = voice_vox.launch_voicevox_engine(download_voicevox.extract_engine(root_dir=arg.engine_dir))
         voice_vox.wait_until_voicevox_ready()
         yield 'Launch Voicevox', None
-
+        voice_vox.import_word_csv(arg.user_dict)
         if not os.path.exists(arg.speaker_json):
             voice_vox.get_speakers(arg.speaker_json)
 
