@@ -14,6 +14,7 @@ from pydub import AudioSegment
 from zunda_w import download_voicevox
 from zunda_w import edit, silent, voice_vox, transcribe_non_silence_srt, transcribe_with_config, file_hash, \
     SpeakerCompose, merge, array_util, cache
+from zunda_w.api import API
 from zunda_w.util import try_json_parse, write_srt, read_srt
 from zunda_w.voice_vox import VoiceVoxProfile, VoiceVoxProfiles
 from zunda_w.whisper_json import WhisperProfile
@@ -118,18 +119,8 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         stt_files = []
         tts_file_list: List[List[str]] = []
         if len(audio_files) == 1 and Path(audio_files[0]).suffix == '.srt':
-            # srt ファイルを音声ファイルに変換
-            subtitles = read_srt(Path(audio_files[0]))
-            speaker_ids = list(map(lambda x: int(x.proprietary), subtitles))
-            tts_files = voice_vox.run(subtitles, speaker=speaker_ids,
-                                      root_dir=cache_general_vv,
-                                      output_dir=cache_tts,
-                                      query=voicevox_profiles[0])
-            compose = SpeakerCompose.from_srt(subtitles, tts_files)
-            arrange_sound: AudioSegment = edit.arrange(compose)
-            arrange_sound.export(arg.output)
-            logger.debug(f'export arrange audio to \'{arg.output}\'')
-            return
+            return API(cache_general_vv, profile=voicevox_profiles[0]) \
+                .srt_to_audio(audio_files[0], arg.output)
         for idx, (original_audio, speaker_id) in enumerate(zip(audio_files, speakers)):
             audio_hash = file_hash(original_audio)
             cache_dir = os.path.join(arg.data_dir, audio_hash)
