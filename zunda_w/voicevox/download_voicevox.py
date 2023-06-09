@@ -9,7 +9,7 @@ import py7zr
 from loguru import logger
 
 from zunda_w.download import cache_download_from_github
-from zunda_w.voicevox_download_link import _engines, _engines_sha256
+from zunda_w.voicevox.voicevox_download_link import _engines, _engines_sha256
 
 
 def _download_engine(urls: List[str], file_hash: List[str], cache_dir: str):

@@ -20,9 +20,8 @@ from loguru import logger
 from pydub import AudioSegment
 
 from zunda_w.cache import cached_file
-from zunda_w.download_voicevox import extract_engine
 from zunda_w.hash import concat_hash, dict_hash
-from zunda_w.voicevox_user_dict import parse_user_dict_from_csv
+from zunda_w.voicevox.voicevox_user_dict import parse_user_dict_from_csv
 
 # TODO ポート番号の仕様チェック
 ROOT_URL = 'http://localhost:50021'

@@ -3,14 +3,14 @@ from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
-from typing import Sequence, List, Callable, Any, Optional, Tuple
+from typing import Sequence, List, Any, Optional, Tuple
 
 import srt
 from pydub import AudioSegment
 from pydub.playback import play
 from srt import Subtitle
 
-from zunda_w.voice_vox import read_output_waves_from_dir, read_output_waves
+from zunda_w.voicevox.voice_vox import read_output_waves
 from zunda_w.words import WordFilter
 
 

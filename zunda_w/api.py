@@ -9,9 +9,10 @@ import srt
 from loguru import logger
 from pydub import AudioSegment
 
-from zunda_w import voice_vox, download_voicevox, cache, edit, SpeakerCompose, SpeakerUnit, transcribe_with_config, \
+from zunda_w import cache, edit, SpeakerCompose, SpeakerUnit, transcribe_with_config, \
     silent, transcribe_non_silence_srt
-from zunda_w.voice_vox import VoiceVoxProfile
+from zunda_w.voicevox import voice_vox, download_voicevox
+from zunda_w.voicevox.voice_vox import VoiceVoxProfile
 from zunda_w import util
 
 

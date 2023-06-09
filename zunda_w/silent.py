@@ -15,6 +15,34 @@ class Segment:
     end: int
 
 
+def _divide_by_silence(segment: AudioSegment, min_silence_len=4000, seek_step=10, silence_thresh_down=-20,
+                       min_length=500) -> List[Tuple[int, AudioSegment, Segment]]:
+    dbFS = segment.dBFS
+    result = silence.detect_nonsilent(segment,
+                                      min_silence_len=min_silence_len,
+                                      seek_step=seek_step,
+                                      silence_thresh=dbFS + silence_thresh_down
+                                      )
+
+    segments = []
+    idx = 0
+    for i, (s, e) in enumerate(result):
+        duration = (e - s)
+        # print(f'duration: {duration / 1000}s')
+        # 検出した音声が最小音声長(millisecond)より短いものは採用しない
+        if duration < min_length:
+            # print(f'skip audio :{i}')
+            continue
+        logger.debug(
+            f'[{idx:04d}] {int(s / 1000 / 60):02d}:{int(s / 1000 % 60):02d}:{int(s % 1000):03d} -> '
+            f'{int(e / 1000 / 60):02d}:{int(e / 1000 % 60):02d}:{int(e % 1000):03d}')
+        slice = segment[s:e]
+        seg = Segment(s, e)
+        idx += 1
+        segments.append((idx, slice, seg))
+    return segments
+
+
 def divide_by_silence(wave_file: str, min_silence_len=4000, seek_step=10, silence_thresh_down=-20,
                       min_length=500,
                       root_dir: str = os.curdir, output_dir: str = '.silence') -> Tuple[Tuple[str], Tuple[str]]:
