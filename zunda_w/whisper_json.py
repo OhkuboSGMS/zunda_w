@@ -16,7 +16,7 @@ from zunda_w import srt_ops
 from zunda_w.model_cache import ModelCache
 from zunda_w.silent import Segment
 from zunda_w.util import text_hash
-from zunda_w.whisers_util import write_srt
+from zunda_w.whisper_util import write_srt
 
 _in_memory_cache = ModelCache()
 
