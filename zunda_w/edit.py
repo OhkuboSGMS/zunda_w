@@ -1,28 +1,12 @@
 import datetime
-from typing import Sequence, Iterator
 
 from pydub import AudioSegment
-from tqdm import tqdm
 
-from zunda_w.srt_ops import SpeakerCompose, merge
+from zunda_w.srt_ops import SpeakerCompose
 
 
 def millisecond(t: datetime.timedelta) -> float:
     return int(t.total_seconds() * 1000 + t.microseconds / 1000.0)
-
-
-def concatenate(segment: Iterator[AudioSegment]) -> AudioSegment:
-    empty = AudioSegment.empty()
-    for audio in segment:
-        empty += audio
-    return empty
-
-
-def concatenate_from_file(wav_files: Iterator[str]) -> AudioSegment:
-    """
-    音声ファイルを順番に結合
-    """
-    return concatenate(map(AudioSegment.from_file, wav_files))
 
 
 def arrange(compose: SpeakerCompose) -> AudioSegment:
