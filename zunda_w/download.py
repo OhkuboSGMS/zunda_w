@@ -9,7 +9,7 @@ from loguru import logger
 from tqdm import tqdm
 
 from zunda_w import util
-from zunda_w.voicevox_download_link import _hash_func
+from zunda_w.voicevox.voicevox_download_link import _hash_func
 
 
 class _DownloadProgressBar(tqdm):

@@ -6,17 +6,16 @@ from functools import cached_property
 from pathlib import Path
 from typing import List, Iterator, Any, Optional, Tuple
 
-import srt
 from classopt import classopt
 from loguru import logger
 from pydub import AudioSegment
 
-from zunda_w import download_voicevox
-from zunda_w import edit, silent, voice_vox, transcribe_non_silence_srt, transcribe_with_config, file_hash, \
+from zunda_w import edit, silent, transcribe_non_silence_srt, transcribe_with_config, file_hash, \
     SpeakerCompose, merge, array_util, cache
+from zunda_w.voicevox import voice_vox, download_voicevox
 from zunda_w.api import API
-from zunda_w.util import try_json_parse, write_srt, read_srt
-from zunda_w.voice_vox import VoiceVoxProfile, VoiceVoxProfiles
+from zunda_w.util import try_json_parse, write_srt
+from zunda_w.voicevox.voice_vox import VoiceVoxProfile, VoiceVoxProfiles
 from zunda_w.whisper_json import WhisperProfile
 from zunda_w.words import WordFilter
 
