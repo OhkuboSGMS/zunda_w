@@ -1,7 +1,6 @@
 import dataclasses
 import json
 import os
-import platform
 import shutil
 from functools import cached_property
 from pathlib import Path
@@ -12,7 +11,8 @@ from loguru import logger
 from pydub import AudioSegment
 
 from zunda_w import edit, silent, transcribe_non_silence_srt, transcribe_with_config, file_hash, \
-    SpeakerCompose, merge, array_util, cache, alert
+    SpeakerCompose, merge, array_util, cache
+from zunda_w.etc import alert
 from zunda_w.api import API
 from zunda_w.audio import concatenate_from_file
 from zunda_w.output import OutputDir
