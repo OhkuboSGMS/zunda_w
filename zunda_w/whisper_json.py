@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import os
 import tempfile
 from dataclasses import dataclass
@@ -17,16 +18,29 @@ from zunda_w.model_cache import ModelCache
 from zunda_w.silent import Segment
 from zunda_w.util import text_hash
 from zunda_w.whisper_util import write_srt
+from enum import Enum
 
 _in_memory_cache = ModelCache()
 
 
+class ModelSize(Enum):
+    tiny = 'tiny'
+    small = 'small'
+    base = 'base'
+    medium = 'medium'
+    large = 'large'
+
+
 @dataclass_json()
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class WhisperProfile:
-    model: Literal['tiny', 'small', 'base', 'medium', 'large'] = 'small'
+    model: ModelSize = ModelSize.small
     language: str = 'ja'
     prompt: str = ''
+
+    def __hash__(self):
+        data = f'{self.model}-{self.language}-{self.prompt}'.encode("utf-8")
+        return hashlib.md5(data).hexdigest()
 
 
 def clean_model():

@@ -1,6 +1,7 @@
 import dataclasses
 import json
 import os
+import platform
 import shutil
 from functools import cached_property
 from pathlib import Path
@@ -11,10 +12,13 @@ from loguru import logger
 from pydub import AudioSegment
 
 from zunda_w import edit, silent, transcribe_non_silence_srt, transcribe_with_config, file_hash, \
-    SpeakerCompose, merge, array_util, cache
-from zunda_w.voicevox import voice_vox, download_voicevox
+    SpeakerCompose, merge, array_util, cache, alert
 from zunda_w.api import API
+from zunda_w.audio import concatenate_from_file
+from zunda_w.output import OutputDir
+from zunda_w.sentence.ginza_sentence import GinzaSentence
 from zunda_w.util import try_json_parse, write_srt
+from zunda_w.voicevox import voice_vox, download_voicevox
 from zunda_w.voicevox.voice_vox import VoiceVoxProfile, VoiceVoxProfiles
 from zunda_w.whisper_json import WhisperProfile
 from zunda_w.words import WordFilter
@@ -27,9 +31,15 @@ DEFAULT_SPEAKER_IDs = [3, 2, 8, 16]
 class Options:
     # 文字起こしする音声ファイル
     audio_files: List[str] = []
+    # 合成後の音声の前にくっつける音声ファイル
+    prev_files: List[str] = []
+    # 合成後の音声の後にくっつける音声ファイル
+    next_files: List[str] = []
     # 既存のsrtファイル audio_filesと二者択一
     srt_file: Optional[str] = None
+    output_dir: str = 'output'
     output: str = 'arrange.wav'
+    mix_output: str = 'mix.wav'
     speakers: List[int] = DEFAULT_SPEAKER_IDs
     default_profile: WhisperProfile = WhisperProfile()
     profile_json: str = 'profile.json'
@@ -43,13 +53,22 @@ class Options:
     cache_root_dir: str = os.curdir
     data_cache_dir: str = '.cache'
     engine_cache_dir: str = cache.user_cache_dir('voicevox')
+    preset_file: str = ''
+    ginza: GinzaSentence = GinzaSentence()
 
     ostt: bool = False
     otts: bool = False
     show_speaker: bool = False
     playback: bool = False
+    # TODO 各種コマンドをfire.Fireで構築
     # clear cache (dont run script)
     clear: bool = False
+    # create preset.yaml file
+    preset: bool = False
+
+    @cached_property
+    def tool_output(self) -> OutputDir:
+        return OutputDir(parent=self.output_dir)
 
     @property
     def data_dir(self) -> str:
@@ -160,16 +179,26 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         # 音声は位置
         logger.debug('arrange audio')
         logger.debug(f'export arrange srt to \'{Path(arg.output).with_suffix(".srt")}')
-        write_srt(Path(arg.output).with_suffix('.srt'), compose.srt)
+        output_srt = Path(arg.tool_output(arg.output)).with_suffix('.srt')
+        output_wav = arg.tool_output(arg.output)
+        write_srt(output_srt, compose.srt)
 
+        arg.ginza.reconstruct(str(output_srt), encoding='utf-8')
         arrange_sound: AudioSegment = edit.arrange(compose)
         logger.debug(f'export arrange audio to \'{arg.output}\'')
-        arrange_sound.export(arg.output)
+        arrange_sound.export(output_wav)
         logger.success('finish process')
         yield 'Finish', arg.output
+        if len(arg.prev_files) > 0 or len(arg.next_files) > 0:
+            mix_audio: AudioSegment = concatenate_from_file([*arg.prev_files,
+                                                             arg.output,
+                                                             *arg.next_files])
+            mix_audio.export(arg.mix_output)
+            yield 'Mix', arg.mix_output
     except Exception as e:
         logger.exception(e)
     finally:
         if voicevox_process is not None:
             voicevox_process.terminate()
             voicevox_process.poll()
+        alert.alert()

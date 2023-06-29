@@ -25,7 +25,9 @@ openai-whisper = { git = "https://github.com/openai/whisper.git", rev = "b5851c6
 ## poetry install で失敗するので追加(0.18.3が問題？)
 future = "0.18.2"
 voicevox-engine-user-dict = { git = "https://github.com/OhkuboSGMS/voicevox_engine_user_dict.git" }
-
+omegaconf = "^2.3.0"
+ginza = "^5.1.2"
+ja-ginza-electra = "^5.1.2"
 torch = [
     { version = "2.0.0", platform = "win32", source = "torch-cuda" },
 ]
@@ -36,6 +38,7 @@ torchaudio = [
     { version = "2.0.1", platform = "win32", source = "torch-cuda" },
 ]
 whisperx = { git = "https://github.com/m-bain/whisperX.git" }
+
 [[tool.poetry.source]]
 name = "torch-cuda"
 url = "https://download.pytorch.org/whl/cu117"
