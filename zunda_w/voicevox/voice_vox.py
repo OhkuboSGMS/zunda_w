@@ -56,12 +56,16 @@ def launch_voicevox_engine(exe_path: str) -> subprocess.Popen:
 
 @contextmanager
 def voicevox_engine(exe_path: str):
-    voicevox_process = launch_voicevox_engine(exe_path)
-    logger.debug('wait voicevox')
-    wait_until_voicevox_ready()
-    yield voicevox_process
-    voicevox_process.terminate()
-    voicevox_process.poll()
+    voicevox_process = None
+    try:
+        voicevox_process = launch_voicevox_engine(exe_path)
+        logger.debug('wait voicevox')
+        wait_until_voicevox_ready()
+        yield voicevox_process
+    finally:
+        if voicevox_process:
+            voicevox_process.terminate()
+            voicevox_process.poll()
 
 
 def _request_and_write(filename: str, synth_payload, query_data) -> Optional[str]:
@@ -249,15 +253,24 @@ class Speakers:
         return {style_id: style_name for style_id, style_name in _data}
 
 
-def get_speakers(write_path: Optional[str] = None) -> Optional[str]:
+def get_speakers(write_path: Optional[str] = None) -> Optional[Dict]:
     r = requests.get(f"{ROOT_URL}/speakers", )
     if r.status_code == 200:
         query_data = r.json()
         data = json.dumps(query_data, indent=2, ensure_ascii=False)
         if write_path:
             Path(write_path).write_text(data, encoding='UTF-8')
-        return data
+        return query_data
     return None
+
+
+def format_speaker(data: dict) -> str:
+    text = []
+    for character in data:
+        name = character['name']
+        for s in character["styles"]:
+            text.append(f'{s["id"]:2d} {name}({s["name"]})')
+    return "\n".join(text)
 
 
 def get_speaker_info(speaker_id: int, data: List) -> str:
