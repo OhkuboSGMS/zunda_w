@@ -191,7 +191,7 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         yield 'Finish', arg.output
         if len(arg.prev_files) > 0 or len(arg.next_files) > 0:
             mix_audio: AudioSegment = concatenate_from_file([*arg.prev_files,
-                                                             arg.output,
+                                                             output_wav,
                                                              *arg.next_files])
             mix_audio.export(arg.mix_output)
             yield 'Mix', arg.mix_output
