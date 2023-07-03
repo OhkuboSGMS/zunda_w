@@ -67,7 +67,7 @@ def _transcribe_with_whisper_x(profile: WhisperProfile, audio_file: str) -> Alig
                                     asr_options=options)
         need_cache = True
     else:
-        logger.debug('Use Cache')
+        logger.debug('Use Model Cache')
         model = _in_memory_cache.get('whisper_x', model_size)[0]
     result = model.transcribe(audio_file, batch_size=batch_size, language=profile.language, )
     if not _in_memory_cache.exist('whisper_x', model_size):
