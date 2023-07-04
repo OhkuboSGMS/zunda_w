@@ -62,6 +62,8 @@ def voicevox_engine(exe_path: str):
         logger.debug('wait voicevox')
         wait_until_voicevox_ready()
         yield voicevox_process
+    except Exception as e:
+        logger.exception(e)
     finally:
         if voicevox_process:
             voicevox_process.terminate()
@@ -179,12 +181,18 @@ def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query
 
 
 def run(srt_file: Union[str, Sequence[srt.Subtitle]], root_dir: str,
-        speaker: Union[int, Sequence[int]] = 1,
+        speaker: Union[None, int, Sequence[int]] = None,
         query: VoiceVoxProfile = None,
         output_dir: str = '.tts'):
     """
     srt(text) to speech を実行.
     出力した音声ファイルはsrtファイルの順番と一致する
+    :param srt_file:
+    :param root_dir:
+    :param speaker: Noneではsrt_fileのメタデータを参照
+    :param query:
+    :param output_dir:
+    :return:
     """
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -196,7 +204,10 @@ def run(srt_file: Union[str, Sequence[srt.Subtitle]], root_dir: str,
         subtitles = list(srt.parse(Path(srt_file).read_text(encoding='utf-8')))
     else:
         subtitles = srt_file
-    if isinstance(speaker, Sequence):
+    if speaker is None:
+        logger.debug('Speaker ID from srt file')
+        speaker = list(map(lambda s: s.proprietary, subtitles))
+    elif isinstance(speaker, Sequence):
         assert len(speaker) == len(srt_file), 'speakersがリストの場合,srt_fileとspeakersの個数は一致しなければいけません'
     else:
         speaker = list(repeat(speaker, len(subtitles)))

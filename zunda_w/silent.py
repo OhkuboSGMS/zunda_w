@@ -53,7 +53,7 @@ def divide_by_silence(wave_file: str, min_silence_len=4000, seek_step=10, silenc
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f'dBFS:{segment.dBFS}')
+    logger.debug(f'dBFS:{segment.dBFS}')
     dbFS = segment.dBFS
     result = silence.detect_nonsilent(segment,
                                       min_silence_len=min_silence_len,

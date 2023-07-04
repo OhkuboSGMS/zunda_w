@@ -52,4 +52,4 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-zunda = "zunda_w.__main__:cli"
+zunda = "zunda_w.__main__:_main"

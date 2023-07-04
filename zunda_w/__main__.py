@@ -11,13 +11,13 @@ from zunda_w.etc.tools import argv_omit
 from zunda_w.main import main, Options
 
 
-def _convert(conf):
+def _convert(conf, *args, **kwargs):
     for msg, data in main(conf):
         logger.debug(msg)
         logger.debug(data)
 
 
-if __name__ == '__main__':
+def _main():
     cmd_log.commit(sys.argv)
     with argv_omit(1):
         arg = Options.from_args()
@@ -29,3 +29,7 @@ if __name__ == '__main__':
         'clear': partial(cmd.clear_cache, arg.data_cache_dir),
         'speaker': partial(cmd.show_speaker, arg.speaker_json, arg.engine_dir),
     })
+
+
+if __name__ == '__main__':
+    _main()
