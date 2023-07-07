@@ -1,20 +1,19 @@
 import dataclasses
 import json
 import os
-import shutil
 from functools import cached_property
 from pathlib import Path
 from typing import List, Iterator, Any, Optional, Tuple
 
 from classopt import classopt
 from loguru import logger
+from omegaconf import OmegaConf, SCMode
 from pydub import AudioSegment
 
 from zunda_w import edit, silent, transcribe_non_silence_srt, transcribe_with_config, file_hash, \
     SpeakerCompose, merge, array_util, cache
-from zunda_w.etc import alert
-from zunda_w.api import API
 from zunda_w.audio import concatenate_from_file
+from zunda_w.etc import alert
 from zunda_w.output import OutputDir
 from zunda_w.sentence.ginza_sentence import GinzaSentence
 from zunda_w.util import try_json_parse, write_srt
@@ -60,11 +59,6 @@ class Options:
     otts: bool = False
     show_speaker: bool = False
     playback: bool = False
-    # TODO 各種コマンドをfire.Fireで構築
-    # clear cache (dont run script)
-    clear: bool = False
-    # create preset.yaml file
-    preset: bool = False
 
     @cached_property
     def tool_output(self) -> OutputDir:
@@ -98,107 +92,97 @@ class Options:
 
 
 def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
+    if arg.preset_file and os.path.exists(arg.preset_file):
+        preset = OmegaConf.load(arg.preset_file)
+        arg = OmegaConf.unsafe_merge(arg, preset)
+
+    logger.info('Parameters:')
+    logger.info(OmegaConf.to_yaml(arg))
+    arg = OmegaConf.to_container(arg, structured_config_mode=SCMode.INSTANTIATE)
     voicevox_process = None
     cache_tts = '.tts'
     cache_general_vv = '.cache/.voicevox'
-    logger.success('start process')
-    if arg.clear:
-        logger.info(f'Clear Cache Files @{arg.data_cache_dir}')
-        shutil.rmtree(arg.data_cache_dir, ignore_errors=True)
-        return
+    audio_files = arg.audio_files
+    speakers = arg.speakers
+    whisper_profile = arg.whisper_profile
+    whisper_profile = dataclasses.replace(whisper_profile, prompt=arg.prompt_text)
+    logger.debug(f'Prompt:: {whisper_profile.prompt}')
+    voicevox_profiles = arg.voicevox_profiles(len(audio_files))
     if arg.audio_files is None:
         raise Exception('Pass Audios Files')
-    try:
-        # voicevox立ち上げ,フォルダが無ければダウンロードする.
-        voicevox_process = voice_vox.launch_voicevox_engine(download_voicevox.extract_engine(root_dir=arg.engine_dir))
-        logger.debug('wait voicevox')
-        voice_vox.wait_until_voicevox_ready()
-        yield 'Launch Voicevox', None
+    # まずspeech to textを行う,ファイルが既に文字お越し済みであれば，そのままファイルを返す
+    stt_files = []
+    audio_hashes = []
+
+    # speech to text
+    for idx, (original_audio, speaker_id) in enumerate(zip(audio_files, speakers)):
+        audio_hash = file_hash(original_audio)
+        cache_dir = os.path.join(arg.data_dir, audio_hash)
+        logger.debug('speech to text')
+        # srtファイルをそのまま返す
+        if Path(original_audio).suffix == '.srt':
+            logger.debug('Skip Speech to Text : it\'s srt file')
+            stt_file = original_audio
+
+        # オリジナル音声の用意
+        elif arg.no_detect_silence:
+            # 文字起こし
+            stt_file = list(transcribe_with_config([original_audio], whisper_profile,
+                                                   root_dir=cache_dir,
+                                                   meta_data=str(speaker_id)
+                                                   ))[0]
+        # オリジナル音声の無音区間を切り抜き
+        else:
+            # Tuple[meta],Tuple[audio]
+            meta, silent_audio = silent.divide_by_silence(original_audio, root_dir=cache_dir)
+            # 切り抜き音声から文字おこし
+            stt_file = transcribe_non_silence_srt(silent_audio, meta, whisper_profile, cache_dir,
+                                                  meta_data=str(speaker_id))
+        stt_files.append(stt_file)
+        audio_hashes.append(audio_hash)
+
+    word_filter = WordFilter(arg.word_filter)
+    # text to speech
+    with voice_vox.voicevox_engine(download_voicevox.extract_engine(root_dir=arg.engine_dir)):
+        # textファイルを speechする
         voice_vox.import_word_csv(arg.user_dict)
-        if not os.path.exists(arg.speaker_json):
-            voice_vox.get_speakers(arg.speaker_json)
-
-        # 現在のvoicevoxの実装済み話者を取得
-        if arg.show_speaker:
-            if speakers := voice_vox.get_speakers(arg.speaker_json):
-                logger.info(speakers)
-            else:
-                logger.warning('Can\'t get /speakers requests')
-            return
-
         speakers_data = json.loads(Path(arg.speaker_json).read_text(encoding='UTF-8'))
-        audio_files = arg.audio_files
-        speakers = arg.speakers
-        whisper_profile = arg.whisper_profile
-        whisper_profile = dataclasses.replace(whisper_profile, prompt=arg.prompt_text)
-        logger.debug(f'Prompt:: {whisper_profile.prompt}')
-        voicevox_profiles = arg.voicevox_profiles(len(audio_files))
-        word_filter = WordFilter(arg.word_filter)
-        stt_files = []
         tts_file_list: List[List[str]] = []
-        if len(audio_files) == 1 and Path(audio_files[0]).suffix == '.srt':
-            return API(cache_general_vv, profile=voicevox_profiles[0]) \
-                .srt_to_audio(audio_files[0], arg.output)
-        for idx, (original_audio, speaker_id) in enumerate(zip(audio_files, speakers)):
-            audio_hash = file_hash(original_audio)
-            cache_dir = os.path.join(arg.data_dir, audio_hash)
-            logger.debug('speech to text')
-            # オリジナル音声の用意
-            if arg.no_detect_silence:
-                # 文字起こし
-                stt_file = list(transcribe_with_config([original_audio], whisper_profile,
-                                                       root_dir=cache_dir,
-                                                       meta_data=str(speaker_id)
-                                                       ))[0]
-            # オリジナル音声の無音区間を切り抜き
-            else:
-                # Tuple[meta],Tuple[audio]
-                meta, silent_audio = silent.divide_by_silence(original_audio, root_dir=cache_dir)
-                # 切り抜き音声から文字おこし
-                stt_file = transcribe_non_silence_srt(silent_audio, meta, whisper_profile, cache_dir,
-                                                      meta_data=str(speaker_id))
-            yield 'Speech to Text(Whisper)', stt_file
-            logger.debug('text to speech')
-            # voicevoxによる音声合成
-            logger.debug(f'{stt_file} to {voice_vox.get_speaker_info(speaker_id, speakers_data)}')
-            tts_files = voice_vox.run(stt_file, speaker=speaker_id, root_dir=cache_dir, output_dir=cache_tts,
-                                      query=voicevox_profiles[idx])
 
-            stt_files.append(stt_file)
+        for idx, (stt_file, audio_hash) in enumerate(zip(stt_files, audio_hashes)):
+            logger.debug(f'text to speech {stt_file}')
+            # voicevoxによる音声合成
+            cache_dir = os.path.join(arg.data_dir, audio_hash)
+            tts_files = voice_vox.run(stt_file, root_dir=cache_dir, output_dir=cache_tts, query=voicevox_profiles[idx])
             tts_file_list.append(tts_files)
             yield 'Text to Speech(Voicevox)', tts_files
 
-        # srt,audioのソート
-        logger.debug('sort srt and audio')
-        # 相槌をある程度フィルタリングする
-        compose: SpeakerCompose = merge(stt_files, tts_file_list, word_filter=word_filter)
-        yield 'Merge Audio Files', compose
-        if arg.playback:
-            logger.debug('playback sort audio')
-            compose.playback()
-        # 音声は位置
-        logger.debug('arrange audio')
-        logger.debug(f'export arrange srt to \'{Path(arg.output).with_suffix(".srt")}')
-        output_srt = Path(arg.tool_output(arg.output)).with_suffix('.srt')
-        output_wav = arg.tool_output(arg.output)
-        write_srt(output_srt, compose.srt)
-
-        arg.ginza.reconstruct(str(output_srt), encoding='utf-8')
-        arrange_sound: AudioSegment = edit.arrange(compose)
-        logger.debug(f'export arrange audio to \'{arg.output}\'')
-        arrange_sound.export(output_wav)
-        logger.success('finish process')
-        yield 'Finish', arg.output
-        if len(arg.prev_files) > 0 or len(arg.next_files) > 0:
-            mix_audio: AudioSegment = concatenate_from_file([*arg.prev_files,
-                                                             arg.output,
-                                                             *arg.next_files])
-            mix_audio.export(arg.mix_output)
-            yield 'Mix', arg.mix_output
-    except Exception as e:
-        logger.exception(e)
-    finally:
-        if voicevox_process is not None:
-            voicevox_process.terminate()
-            voicevox_process.poll()
-        alert.alert()
+    # srt,audioのソート
+    logger.debug('sort srt and audio')
+    # 相槌をある程度フィルタリングする
+    compose: SpeakerCompose = merge(stt_files, tts_file_list, word_filter=word_filter)
+    yield 'Merge Audio Files', compose
+    if arg.playback:
+        logger.debug('playback sort audio')
+        compose.playback()
+    # 音声は位置
+    logger.debug('arrange audio')
+    logger.debug(f'export arrange srt to \'{Path(arg.output).with_suffix(".srt")}')
+    output_srt = Path(arg.tool_output(arg.output)).with_suffix('.srt')
+    output_wav = arg.tool_output(arg.output)
+    write_srt(output_srt, compose.srt)
+    # TODO ポストプロセスとしてリファクタリング
+    # TODO edit.arrangeに対して影響がでていない
+    arg.ginza.reconstruct(str(output_srt), encoding='utf-8')
+    arrange_sound: AudioSegment = edit.arrange(compose)
+    logger.debug(f'export arrange audio to \'{arg.output}\'')
+    arrange_sound.export(output_wav)
+    logger.success('finish process')
+    yield 'Finish', arg.output
+    if len(arg.prev_files) > 0 or len(arg.next_files) > 0:
+        mix_audio: AudioSegment = concatenate_from_file([*arg.prev_files,
+                                                         output_wav,
+                                                         *arg.next_files])
+        mix_audio.export(arg.mix_output)
+        yield 'Mix', arg.mix_output
+    alert.alert()

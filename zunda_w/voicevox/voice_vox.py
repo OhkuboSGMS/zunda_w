@@ -56,12 +56,18 @@ def launch_voicevox_engine(exe_path: str) -> subprocess.Popen:
 
 @contextmanager
 def voicevox_engine(exe_path: str):
-    voicevox_process = launch_voicevox_engine(exe_path)
-    logger.debug('wait voicevox')
-    wait_until_voicevox_ready()
-    yield voicevox_process
-    voicevox_process.terminate()
-    voicevox_process.poll()
+    voicevox_process = None
+    try:
+        voicevox_process = launch_voicevox_engine(exe_path)
+        logger.debug('wait voicevox')
+        wait_until_voicevox_ready()
+        yield voicevox_process
+    except Exception as e:
+        logger.exception(e)
+    finally:
+        if voicevox_process:
+            voicevox_process.terminate()
+            voicevox_process.poll()
 
 
 def _request_and_write(filename: str, synth_payload, query_data) -> Optional[str]:
@@ -175,12 +181,18 @@ def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query
 
 
 def run(srt_file: Union[str, Sequence[srt.Subtitle]], root_dir: str,
-        speaker: Union[int, Sequence[int]] = 1,
+        speaker: Union[None, int, Sequence[int]] = None,
         query: VoiceVoxProfile = None,
         output_dir: str = '.tts'):
     """
     srt(text) to speech を実行.
     出力した音声ファイルはsrtファイルの順番と一致する
+    :param srt_file:
+    :param root_dir:
+    :param speaker: Noneではsrt_fileのメタデータを参照
+    :param query:
+    :param output_dir:
+    :return:
     """
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -192,7 +204,10 @@ def run(srt_file: Union[str, Sequence[srt.Subtitle]], root_dir: str,
         subtitles = list(srt.parse(Path(srt_file).read_text(encoding='utf-8')))
     else:
         subtitles = srt_file
-    if isinstance(speaker, Sequence):
+    if speaker is None:
+        logger.debug('Speaker ID from srt file')
+        speaker = list(map(lambda s: s.proprietary, subtitles))
+    elif isinstance(speaker, Sequence):
         assert len(speaker) == len(srt_file), 'speakersがリストの場合,srt_fileとspeakersの個数は一致しなければいけません'
     else:
         speaker = list(repeat(speaker, len(subtitles)))
@@ -249,15 +264,24 @@ class Speakers:
         return {style_id: style_name for style_id, style_name in _data}
 
 
-def get_speakers(write_path: Optional[str] = None) -> Optional[str]:
+def get_speakers(write_path: Optional[str] = None) -> Optional[Dict]:
     r = requests.get(f"{ROOT_URL}/speakers", )
     if r.status_code == 200:
         query_data = r.json()
         data = json.dumps(query_data, indent=2, ensure_ascii=False)
         if write_path:
             Path(write_path).write_text(data, encoding='UTF-8')
-        return data
+        return query_data
     return None
+
+
+def format_speaker(data: dict) -> str:
+    text = []
+    for character in data:
+        name = character['name']
+        for s in character["styles"]:
+            text.append(f'{s["id"]:2d} {name}({s["name"]})')
+    return "\n".join(text)
 
 
 def get_speaker_info(speaker_id: int, data: List) -> str:
