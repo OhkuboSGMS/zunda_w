@@ -1,7 +1,8 @@
+import gc
 import warnings
 from collections import defaultdict
-from typing import Any, Dict, Callable
-import gc
+from typing import Any, Callable, Dict
+
 import torch
 
 
@@ -18,14 +19,16 @@ class ModelCache:
 
     def add(self, model_name: str, model_size: str, model: Any):
         if model_size in self._cache_map[model_name]:
-            raise KeyError(f'{model_name}[{model_size}] is already cached.clear before new cache!')
+            raise KeyError(
+                f"{model_name}[{model_size}] is already cached.clear before new cache!"
+            )
 
         self._cache_map[model_name][model_size] = model
         return model
 
     def get(self, model_name: str, model_size: str) -> Any:
         if model_size not in self._cache_map[model_name]:
-            raise KeyError(f'Not Found Model{model_name}][{model_size}]')
+            raise KeyError(f"Not Found Model{model_name}][{model_size}]")
         return self._cache_map[model_name][model_size]
 
     def exist(self, model_name: str, model_size: str) -> bool:
@@ -33,7 +36,7 @@ class ModelCache:
 
     def remove(self, model_name: str, model_size: str):
         if model_size not in self._cache_map[model_name]:
-            warnings.warn(f'Not Found Model{model_name}][{model_size}]')
+            warnings.warn(f"Not Found Model{model_name}][{model_size}]")
             return
         model = self._cache_map[model_name].pop(model_size)
         self.clear_func(model)

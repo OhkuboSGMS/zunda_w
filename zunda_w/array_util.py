@@ -1,4 +1,4 @@
-from typing import Sequence, Any, Iterator
+from typing import Any, Iterator, Sequence
 
 
 def duplicate_last(array: Sequence[Any], size: int) -> Iterator[Any]:

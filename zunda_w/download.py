@@ -1,6 +1,6 @@
 import hashlib
 from pathlib import Path
-from typing import Union, Tuple, Optional
+from typing import Optional, Tuple, Union
 from urllib import request
 from urllib.error import HTTPError
 from urllib.parse import urlparse
@@ -20,15 +20,16 @@ class _DownloadProgressBar(tqdm):
 
 
 def download_url(url: str, output_path: str):
-    with _DownloadProgressBar(unit='B', unit_scale=True,
-                              miniters=1, desc=url.split('/')[-1]) as t:
+    with _DownloadProgressBar(
+        unit="B", unit_scale=True, miniters=1, desc=url.split("/")[-1]
+    ) as t:
         request.urlretrieve(url, filename=output_path, reporthook=t.update_to)
 
 
 # https://github.com/OhkuboSGMS/NullA/blob/develop/nulla/download.py
-def cache_download_from_github(url: str, hash_name: str, save_dir: Union[str, Path], force_download: bool = False) -> \
-        Tuple[
-            bool, Optional[Path]]:
+def cache_download_from_github(
+    url: str, hash_name: str, save_dir: Union[str, Path], force_download: bool = False
+) -> Tuple[bool, Optional[Path]]:
     """
     キャッシュがあるかチェックしてからダウンロードする.
     現在ダウンロードされているファイルとhash_nameが一致しなければ
@@ -47,7 +48,7 @@ def cache_download_from_github(url: str, hash_name: str, save_dir: Union[str, Pa
         if force_download:
             return download_from_github(url, save_dir)
         if util.file_hash(str(save_path), hash_func) != str.lower(hash_name):
-            logger.warning(f'exists file not valid. re-download from url:{save_path}')
+            logger.warning(f"exists file not valid. re-download from url:{save_path}")
             return download_from_github(url, save_dir)
 
         return True, save_path
@@ -55,7 +56,9 @@ def cache_download_from_github(url: str, hash_name: str, save_dir: Union[str, Pa
         return download_from_github(url, save_dir)
 
 
-def download_from_github(url: str, save_dir: Union[str, Path]) -> Tuple[bool, Optional[Path]]:
+def download_from_github(
+    url: str, save_dir: Union[str, Path]
+) -> Tuple[bool, Optional[Path]]:
     """
     githubからファイルをダウンロード. rawファイルのURLを使用する必要がある.
     :param url: ダウンロードURL.末端パスをファイル名に使用

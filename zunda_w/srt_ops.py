@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
-from typing import Sequence, List, Any, Optional, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 import srt
 from pydub import AudioSegment
@@ -35,7 +35,12 @@ class SpeakerCompose:
         :return:
         """
         assert len(subtitles) == len(tts_files)
-        compose = list(map(lambda x: SpeakerUnit(x[0], AudioSegment.from_file(x[1])), zip(subtitles, tts_files)))
+        compose = list(
+            map(
+                lambda x: SpeakerUnit(x[0], AudioSegment.from_file(x[1])),
+                zip(subtitles, tts_files),
+            )
+        )
         last_end = subtitles[-1].end
         return SpeakerCompose(tuple(compose), last_end)
 
@@ -45,21 +50,25 @@ class SpeakerCompose:
         unit.audioの総時間
         :return:
         """
-        return datetime.timedelta(milliseconds=sum(map(lambda x: len(x.audio), self.unit)))
+        return datetime.timedelta(
+            milliseconds=sum(map(lambda x: len(x.audio), self.unit))
+        )
 
     @cached_property
     def srt(self) -> Sequence[srt.Subtitle]:
         return list(map(lambda u: u.subtitle, self.unit))
 
     def __str__(self) -> str:
-        return '\n'.join(map(str, self.unit))
+        return "\n".join(map(str, self.unit))
 
     def playback(self):
         for unit in self.unit:
             play(unit.audio)
 
 
-def _parse_with_id(srt_file_path: str, id: int, encoding: str, wave_paths: Sequence[str]) -> List[SpeakerUnit]:
+def _parse_with_id(
+    srt_file_path: str, id: int, encoding: str, wave_paths: Sequence[str]
+) -> List[SpeakerUnit]:
     subtitles = list(srt.parse(Path(srt_file_path).read_text(encoding=encoding)))
     for s in subtitles:
         s.speaker = id
@@ -68,24 +77,40 @@ def _parse_with_id(srt_file_path: str, id: int, encoding: str, wave_paths: Seque
     return [SpeakerUnit(s, a) for s, a in zip(subtitles, audio)]
 
 
-def merge(srt_files: Sequence[str], tts_files: List[Sequence[str]], encoding='UTF-8',
-          word_filter: WordFilter = None) -> SpeakerCompose:
+def merge(
+    srt_files: Sequence[str],
+    tts_files: List[Sequence[str]],
+    encoding="UTF-8",
+    word_filter: WordFilter = None,
+) -> SpeakerCompose:
     """
     SubtitleとAudiosを読み込み，時間順にソートする
 
     :return 合成結果のインスタンス
     """
-    units: List[SpeakerUnit] = list(chain.from_iterable(
-        map(lambda x: _parse_with_id(x[1][0], x[0], encoding, x[1][1]), enumerate(zip(srt_files, tts_files)))))
+    units: List[SpeakerUnit] = list(
+        chain.from_iterable(
+            map(
+                lambda x: _parse_with_id(x[1][0], x[0], encoding, x[1][1]),
+                enumerate(zip(srt_files, tts_files)),
+            )
+        )
+    )
     units.sort(key=lambda s: s.subtitle.start)
     if word_filter:
-        units = list(filter(lambda unit: word_filter.is_exclude(unit.subtitle.content), units))
+        units = list(
+            filter(lambda unit: word_filter.is_exclude(unit.subtitle.content), units)
+        )
     time_length = units[-1].subtitle.end
     return SpeakerCompose(units, time_length)
 
 
-def write_srt_with_meta(srt_path: Path, meta_data: Any = '', output_path: Optional[Path] = None,
-                        encoding='UTF-8') -> Path:
+def write_srt_with_meta(
+    srt_path: Path,
+    meta_data: Any = "",
+    output_path: Optional[Path] = None,
+    encoding="UTF-8",
+) -> Path:
     """
     既存のsrtファイルにmetaデータを一律で設定して再度書き込む
     :param srt_path:
