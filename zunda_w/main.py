@@ -10,16 +10,16 @@ from loguru import logger
 from omegaconf import OmegaConf, SCMode
 from pydub import AudioSegment
 
-from zunda_w import edit, silent, transcribe_non_silence_srt, transcribe_with_config, file_hash, \
-    SpeakerCompose, merge, array_util, cache
+from zunda_w import edit, silent, file_hash, SpeakerCompose, merge, array_util, cache
+from zunda_w.whisper_json import transcribe_non_silence_srt, transcribe_with_config, clean_model
 from zunda_w.audio import concatenate_from_file
 from zunda_w.etc import alert
 from zunda_w.output import OutputDir
 from zunda_w.sentence.ginza_sentence import GinzaSentence
-from zunda_w.util import try_json_parse, write_srt
+from zunda_w.util import try_json_parse, write_srt, display_file_uri, file_uri
 from zunda_w.voicevox import voice_vox, download_voicevox
 from zunda_w.voicevox.voice_vox import VoiceVoxProfile, VoiceVoxProfiles
-from zunda_w.whisper_json import WhisperProfile
+from zunda_w.whisper_json import WhisperProfile, whisper_context
 from zunda_w.words import WordFilter
 
 # 東北(ノーマル) ,四国(ノーマル),埼玉(ノーマル),九州(ノーマル)
@@ -48,16 +48,15 @@ class Options:
     word_filter: str = 'filter_word.txt'
     prompt: str = 'prompt.txt'
     user_dict: str = 'user_dict.csv'
-    no_detect_silence: bool = False
+    no_detect_silence: bool = True
     cache_root_dir: str = os.curdir
     data_cache_dir: str = '.cache'
     engine_cache_dir: str = cache.user_cache_dir('voicevox')
-    preset_file: str = ''
+    preset_file: str = 'preset.yaml'
     ginza: GinzaSentence = GinzaSentence()
-
+    text: str = "これはサンプルボイスです"
     ostt: bool = False
     otts: bool = False
-    show_speaker: bool = False
     playback: bool = False
 
     @cached_property
@@ -115,31 +114,37 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     audio_hashes = []
 
     # speech to text
-    for idx, (original_audio, speaker_id) in enumerate(zip(audio_files, speakers)):
-        audio_hash = file_hash(original_audio)
-        cache_dir = os.path.join(arg.data_dir, audio_hash)
-        logger.debug('speech to text')
-        # srtファイルをそのまま返す
-        if Path(original_audio).suffix == '.srt':
-            logger.debug('Skip Speech to Text : it\'s srt file')
-            stt_file = original_audio
+    with whisper_context():
+        for idx, (original_audio, speaker_id) in enumerate(zip(audio_files, speakers)):
+            audio_hash = file_hash(original_audio)
+            cache_dir = os.path.join(arg.data_dir, audio_hash)
+            logger.debug('speech to text')
+            post_process: bool = False
+            # srtファイルをそのまま返す
+            if Path(original_audio).suffix == '.srt':
+                logger.debug('Skip Speech to Text : it\'s srt file')
+                stt_file = original_audio
 
-        # オリジナル音声の用意
-        elif arg.no_detect_silence:
-            # 文字起こし
-            stt_file = list(transcribe_with_config([original_audio], whisper_profile,
-                                                   root_dir=cache_dir,
-                                                   meta_data=str(speaker_id)
-                                                   ))[0]
-        # オリジナル音声の無音区間を切り抜き
-        else:
-            # Tuple[meta],Tuple[audio]
-            meta, silent_audio = silent.divide_by_silence(original_audio, root_dir=cache_dir)
-            # 切り抜き音声から文字おこし
-            stt_file = transcribe_non_silence_srt(silent_audio, meta, whisper_profile, cache_dir,
-                                                  meta_data=str(speaker_id))
-        stt_files.append(stt_file)
-        audio_hashes.append(audio_hash)
+            # オリジナル音声の用意
+            elif arg.no_detect_silence:
+                # 文字起こし
+                stt_file = list(transcribe_with_config([original_audio], whisper_profile,
+                                                       root_dir=cache_dir,
+                                                       meta_data=str(speaker_id)
+                                                       ))[0]
+                post_process = True
+            # オリジナル音声の無音区間を切り抜き
+            else:
+                # Tuple[meta],Tuple[audio]
+                meta, silent_audio = silent.divide_by_silence(original_audio, root_dir=cache_dir)
+                # 切り抜き音声から文字おこし
+                stt_file = transcribe_non_silence_srt(silent_audio, meta, whisper_profile, cache_dir,
+                                                      meta_data=str(speaker_id))
+                post_process = True
+            if post_process:
+                stt_file = arg.ginza.reconstruct(stt_file, encoding='utf-8')
+            stt_files.append(stt_file)
+            audio_hashes.append(audio_hash)
 
     word_filter = WordFilter(arg.word_filter)
     # text to speech
@@ -167,15 +172,14 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         compose.playback()
     # 音声は位置
     logger.debug('arrange audio')
-    logger.debug(f'export arrange srt to \'{Path(arg.output).with_suffix(".srt")}')
     output_srt = Path(arg.tool_output(arg.output)).with_suffix('.srt')
     output_wav = arg.tool_output(arg.output)
+    output_mix = arg.tool_output(arg.mix_output)
+    logger.debug(f'export arrange srt to \'{file_uri(output_srt)}')
     write_srt(output_srt, compose.srt)
-    # TODO ポストプロセスとしてリファクタリング
-    # TODO edit.arrangeに対して影響がでていない
-    arg.ginza.reconstruct(str(output_srt), encoding='utf-8')
     arrange_sound: AudioSegment = edit.arrange(compose)
-    logger.debug(f'export arrange audio to \'{arg.output}\'')
+    logger.debug(f'export arrange audio to \'{output_wav}\'', end='')
+    display_file_uri(output_wav)
     arrange_sound.export(output_wav)
     logger.success('finish process')
     yield 'Finish', arg.output
@@ -183,6 +187,6 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         mix_audio: AudioSegment = concatenate_from_file([*arg.prev_files,
                                                          output_wav,
                                                          *arg.next_files])
-        mix_audio.export(arg.mix_output)
-        yield 'Mix', arg.mix_output
+        mix_audio.export(output_mix)
+        yield 'Mix', output_mix
     alert.alert()
