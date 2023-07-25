@@ -31,3 +31,17 @@ def write_srt(path: Path, data: Sequence[srt.Subtitle], encoding: str = 'UTF-8',
 
 def read_srt(path: Path, encoding: str = 'UTF-8') -> Sequence[srt.Subtitle]:
     return list(srt.parse(path.read_text(encoding=encoding)))
+
+
+def display_file_uri(path: str, print_func=print):
+    """
+    ターミナルでクリックすると表示できる方式で画面出力する
+    :param path:
+    :param print_func:
+    :return:
+    """
+    print_func(Path(path).absolute().as_uri())
+
+
+def file_uri(path: str) -> str:
+    return Path(path).absolute().as_uri()

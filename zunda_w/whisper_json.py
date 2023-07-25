@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import hashlib
 import os
@@ -44,7 +45,14 @@ class WhisperProfile:
 
 
 def clean_model():
+    logger.debug('Clean Text to Speech Models')
     _in_memory_cache.clear()
+
+
+@contextlib.contextmanager
+def whisper_context():
+    yield
+    clean_model()
 
 
 def _transcribe_with_whisper_x(profile: WhisperProfile, audio_file: str) -> AlignedTranscriptionResult:
@@ -122,7 +130,8 @@ def _divide_segment(segment: SingleAlignedSegment, offset: int) -> List[Dict]:
     :return:
     """
     # .。は即時分解
-    punch = {',': 20, '.': 0, '、': 20, '。': 0}
+    #  '.'は日本語で出ないと仮定して外す
+    punch = {',': 20, '、': 20, '。': 0}
     idx = offset
     sentence = []
     words = []
@@ -264,12 +273,18 @@ def transcribe_with_config(wave_files: List[str], profile: WhisperProfile, root_
     encoding = 'UTF-8'
     for audio_file in tqdm(wave_files, desc='Whisper Speech to Text'):
         file_name = Path(audio_file).stem
+        output_srt_path = output_dir.joinpath(file_name).with_suffix('.srt')
+        # TODO 設定に基づくキャッシュを行う(現在はパラメータ関係なくキャッシュしている)b
+        if output_srt_path.exists():
+            logger.debug('Skip Whisper transcribe use cache.')
+            yield str(output_srt_path)
+            break
         with tempfile.TemporaryDirectory() as tmpdir:
             audio = effects.normalize(AudioSegment.from_file(audio_file))
             tmp_file_path = os.path.join(tmpdir, file_name)
             audio.export(tmp_file_path)
             result = _transcribe(model, profile, tmp_file_path)
-        output_srt_path = output_dir.joinpath(file_name).with_suffix('.srt')
+
         with open(output_srt_path, "w", encoding=encoding) as srt_file:
             write_srt(result["segments"], file=srt_file)
         if meta_data:
