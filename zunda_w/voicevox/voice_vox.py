@@ -11,7 +11,17 @@ from dataclasses import dataclass
 from functools import partial
 from itertools import chain, repeat
 from pathlib import Path
-from typing import Sequence, Generator, List, Optional, TypedDict, Dict, Iterator, Tuple, Union
+from typing import (
+    Dict,
+    Generator,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TypedDict,
+    Union,
+)
 
 import requests
 import srt
@@ -24,7 +34,7 @@ from zunda_w.hash import concat_hash, dict_hash
 from zunda_w.voicevox.voicevox_user_dict import parse_user_dict_from_csv
 
 # TODO ポート番号の仕様チェック
-ROOT_URL = 'http://localhost:50021'
+ROOT_URL = "http://localhost:50021"
 
 
 class VoiceVoxProfile(TypedDict, total=False):
@@ -50,8 +60,8 @@ def replace_query(src_query: Dict, trt_query: Dict) -> Dict:
 
 
 def launch_voicevox_engine(exe_path: str) -> subprocess.Popen:
-    logger.debug(f'[VOICEVOX] Launch {exe_path} as subprocess')
-    return subprocess.Popen([exe_path, '--use_gpu'], stdout=subprocess.DEVNULL)
+    logger.debug(f"[VOICEVOX] Launch {exe_path} as subprocess")
+    return subprocess.Popen([exe_path, "--use_gpu"], stdout=subprocess.DEVNULL)
 
 
 @contextmanager
@@ -59,7 +69,7 @@ def voicevox_engine(exe_path: str):
     voicevox_process = None
     try:
         voicevox_process = launch_voicevox_engine(exe_path)
-        logger.debug('wait voicevox')
+        logger.debug("wait voicevox")
         wait_until_voicevox_ready()
         yield voicevox_process
     except Exception as e:
@@ -71,8 +81,12 @@ def voicevox_engine(exe_path: str):
 
 
 def _request_and_write(filename: str, synth_payload, query_data) -> Optional[str]:
-    r = requests.post(f"{ROOT_URL}/synthesis", params=synth_payload,
-                      data=json.dumps(query_data), timeout=(10.0, 300.0))
+    r = requests.post(
+        f"{ROOT_URL}/synthesis",
+        params=synth_payload,
+        data=json.dumps(query_data),
+        timeout=(10.0, 300.0),
+    )
     if r.status_code == 200:
         # 別スレッドで既に保存されている可能性も考慮.
         if os.path.exists(filename):
@@ -86,8 +100,15 @@ def _request_and_write(filename: str, synth_payload, query_data) -> Optional[str
     return None
 
 
-def synthesis(text: str, speaker: int, output_name: Optional[str], output_dir: str, max_retry=20,
-              query: VoiceVoxProfile = None, use_cache=True):
+def synthesis(
+    text: str,
+    speaker: int,
+    output_name: Optional[str],
+    output_dir: str,
+    max_retry=20,
+    query: VoiceVoxProfile = None,
+    use_cache=True,
+):
     """
     voicevoxにて合成音声を出力
     :param text:
@@ -102,14 +123,17 @@ def synthesis(text: str, speaker: int, output_name: Optional[str], output_dir: s
     # audio_query
     query_payload = {"text": text, "speaker": speaker}
     for query_i in range(max_retry):
-        r = requests.post(f"{ROOT_URL}/audio_query",
-                          params=query_payload, timeout=(10.0, 300.0))
+        r = requests.post(
+            f"{ROOT_URL}/audio_query", params=query_payload, timeout=(10.0, 300.0)
+        )
         if r.status_code == 200:
             query_data = r.json()
             break
         time.sleep(1)
     else:
-        raise ConnectionError("リトライ回数が上限に到達しました。 audio_query : ", output_dir, "/", text[:30], r.text)
+        raise ConnectionError(
+            "リトライ回数が上限に到達しました。 audio_query : ", output_dir, "/", text[:30], r.text
+        )
 
     # synthesis
     synth_payload = {"speaker": speaker}
@@ -117,26 +141,41 @@ def synthesis(text: str, speaker: int, output_name: Optional[str], output_dir: s
     # リクエストパラメータからキャッシュ値を計算
     cache_hash: str = str(concat_hash([dict_hash(query_payload)]))
     if output_name:
-        output_file = os.path.join(output_dir, f'{output_name}.wav')
+        output_file = os.path.join(output_dir, f"{output_name}.wav")
     else:
-        output_file = os.path.join(output_dir, f'{cache_hash}.wav')
+        output_file = os.path.join(output_dir, f"{cache_hash}.wav")
     if not use_cache and os.path.exists(output_file):
         os.unlink(output_file)
     for synth_i in range(max_retry):
         if use_cache:
-            cached, output_file_name = cached_file(output_file,
-                                                   lambda: _request_and_write(output_file, synth_payload, query_data))
+            cached, output_file_name = cached_file(
+                output_file,
+                lambda: _request_and_write(output_file, synth_payload, query_data),
+            )
         else:
-            cached, output_file_name = False, _request_and_write(output_file, synth_payload, query_data)
+            cached, output_file_name = False, _request_and_write(
+                output_file, synth_payload, query_data
+            )
         if output_file_name is not None:
-            logger.debug(f'{text[:15].ljust(15)} ->{"[cache] " if cached else ""} {output_file_name} ')
+            logger.debug(
+                f'{text[:15].ljust(15)} ->{"[cache] " if cached else ""} {output_file_name} '
+            )
             return output_file_name
     else:
-        raise ConnectionError("リトライ回数が上限に到達しました。 synthesis : ", output_dir, "/", text[:30], r, text)
+        raise ConnectionError(
+            "リトライ回数が上限に到達しました。 synthesis : ", output_dir, "/", text[:30], r, text
+        )
 
 
 def synthesis_map(data, output_dir: str, query: VoiceVoxProfile, use_cache: bool):
-    return synthesis(data[0], data[1], data[2], output_dir=output_dir, query=query, use_cache=use_cache)
+    return synthesis(
+        data[0],
+        data[1],
+        data[2],
+        output_dir=output_dir,
+        query=query,
+        use_cache=use_cache,
+    )
 
 
 def output_path(idx: int, root: str) -> str:
@@ -161,23 +200,34 @@ def read_output_waves_from_dir(wave_dir: str) -> Generator[AudioSegment, None, N
         yield AudioSegment.from_file(os.path.join(wave_dir, src))
 
 
-def text_to_speech_order(contents: Sequence[str], speaker: Sequence[int], output_dir: str, query: VoiceVoxProfile,
-                         output_names: Optional[Sequence[str]] = None, use_cache: bool = False) -> \
-        Sequence[str]:
+def text_to_speech_order(
+    contents: Sequence[str],
+    speaker: Sequence[int],
+    output_dir: str,
+    query: VoiceVoxProfile,
+    output_names: Optional[Sequence[str]] = None,
+    use_cache: bool = False,
+) -> Sequence[str]:
     if output_names is None:
         output_names = [None for _ in range(len(contents))]
     elif len(contents) != len(output_names):
-        raise ValueError('output_names length not equal contents')
+        raise ValueError("output_names length not equal contents")
     with ThreadPoolExecutor() as executor:
         results = []
-        for result in executor.map(partial(synthesis_map, output_dir=output_dir, query=query, use_cache=use_cache),
-                                   zip(contents, speaker, output_names)):
+        for result in executor.map(
+            partial(
+                synthesis_map, output_dir=output_dir, query=query, use_cache=use_cache
+            ),
+            zip(contents, speaker, output_names),
+        ):
             logger.debug(result)
             results.append(result)
     return results
 
 
-def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile) -> str:
+def text_to_speech(
+    contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile
+) -> str:
     """
     VoiceVoxローカルサーバに対してリクエストを投げてttsを実行.
 
@@ -190,18 +240,25 @@ def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query
     with ThreadPoolExecutor() as executor:
         futures = []
         for i, line in enumerate(contents):
-            futures.append(executor.submit(synthesis, line, output_dir, speaker=speaker, query=query))
+            futures.append(
+                executor.submit(
+                    synthesis, line, output_dir, speaker=speaker, query=query
+                )
+            )
         for result in as_completed(futures):
             logger.debug(result.result())
     return output_dir
 
 
-def run(srt_file: Union[str, Sequence[srt.Subtitle]], root_dir: str,
-        speaker: Union[None, int, Sequence[int]] = None,
-        query: VoiceVoxProfile = None,
-        output_dir: str = '.tts',
-        output_names: Optional[Sequence[str]] = None,
-        use_cache: bool = True):
+def run(
+    srt_file: Union[str, Sequence[srt.Subtitle]],
+    root_dir: str,
+    speaker: Union[None, int, Sequence[int]] = None,
+    query: VoiceVoxProfile = None,
+    output_dir: str = ".tts",
+    output_names: Optional[Sequence[str]] = None,
+    use_cache: bool = True,
+):
     """
     srt(text) to speech を実行.
     出力した音声ファイルはsrtファイルの順番と一致する
@@ -220,14 +277,16 @@ def run(srt_file: Union[str, Sequence[srt.Subtitle]], root_dir: str,
         query = VoiceVoxProfile()
 
     if type(srt_file) == str:
-        subtitles = list(srt.parse(Path(srt_file).read_text(encoding='utf-8')))
+        subtitles = list(srt.parse(Path(srt_file).read_text(encoding="utf-8")))
     else:
         subtitles = srt_file
     if speaker is None:
-        logger.debug('Speaker ID from srt file')
+        logger.debug("Speaker ID from srt file")
         speaker = list(map(lambda s: s.proprietary, subtitles))
     elif isinstance(speaker, Sequence):
-        assert len(speaker) == len(srt_file), 'speakersがリストの場合,srt_fileとspeakersの個数は一致しなければいけません'
+        assert len(speaker) == len(
+            srt_file
+        ), "speakersがリストの場合,srt_fileとspeakersの個数は一致しなければいけません"
     else:
         speaker = list(repeat(speaker, len(subtitles)))
 
@@ -235,12 +294,18 @@ def run(srt_file: Union[str, Sequence[srt.Subtitle]], root_dir: str,
 
     # 読み上げように，無駄な空白をなくす
     def non_empty(x: str) -> str:
-        return ''.join(filter(lambda c: c != ' ', x))
+        return "".join(filter(lambda c: c != " ", x))
 
     subtitles = list(map(non_empty, subtitles))
 
-    return text_to_speech_order(subtitles, speaker, str(output_dir), query, output_names=output_names,
-                                use_cache=use_cache)
+    return text_to_speech_order(
+        subtitles,
+        speaker,
+        str(output_dir),
+        query,
+        output_names=output_names,
+        use_cache=use_cache,
+    )
 
 
 @dataclass_json
@@ -259,7 +324,7 @@ class Speaker:
     version: str
 
     def as_style_names(self) -> List[str]:
-        return list(map(lambda s: f'{self.name}({s.name})', self.styles))
+        return list(map(lambda s: f"{self.name}({s.name})", self.styles))
 
     def as_style_ids(self) -> List[int]:
         return list(map(lambda s: s.id, self.styles))
@@ -271,7 +336,7 @@ class Speakers:
 
     @classmethod
     def read(cls, path) -> Speakers:
-        with open(path, encoding='UTF-8') as fp:
+        with open(path, encoding="UTF-8") as fp:
             return Speakers(data=Speaker.schema().load(json.load(fp), many=True))
 
     def as_view(self) -> Dict[int, str]:
@@ -280,17 +345,23 @@ class Speakers:
         :return:Dict[style_id,style_name(speaker_name(style_name))]
         """
         _data: Iterator[Tuple[int, str]] = chain.from_iterable(
-            map(lambda speaker: zip(speaker.as_style_ids(), speaker.as_style_names()), self.data))
+            map(
+                lambda speaker: zip(speaker.as_style_ids(), speaker.as_style_names()),
+                self.data,
+            )
+        )
         return {style_id: style_name for style_id, style_name in _data}
 
 
 def get_speakers(write_path: Optional[str] = None) -> Optional[List[Dict]]:
-    r = requests.get(f"{ROOT_URL}/speakers", )
+    r = requests.get(
+        f"{ROOT_URL}/speakers",
+    )
     if r.status_code == 200:
         query_data = r.json()
         data = json.dumps(query_data, indent=2, ensure_ascii=False)
         if write_path:
-            Path(write_path).write_text(data, encoding='UTF-8')
+            Path(write_path).write_text(data, encoding="UTF-8")
         return query_data
     return None
 
@@ -298,16 +369,28 @@ def get_speakers(write_path: Optional[str] = None) -> Optional[List[Dict]]:
 def format_speaker(data: dict) -> str:
     text = []
     for character in data:
-        name = character['name']
+        name = character["name"]
         for s in character["styles"]:
             text.append(f'{s["id"]:2d} {name}({s["name"]})')
     return "\n".join(text)
 
 
 def get_speaker_info(speaker_id: int, data: List) -> str:
-    _id_dict = {int(kv[0]): kv[1] for kv in
-                chain.from_iterable(
-                    map(lambda d: map(lambda x: (x['id'], d['name'] + '_' + x['name'],), d['styles']), data))}
+    _id_dict = {
+        int(kv[0]): kv[1]
+        for kv in chain.from_iterable(
+            map(
+                lambda d: map(
+                    lambda x: (
+                        x["id"],
+                        d["name"] + "_" + x["name"],
+                    ),
+                    d["styles"],
+                ),
+                data,
+            )
+        )
+    }
     if speaker_id not in _id_dict:
         return str(speaker_id)
     else:
@@ -315,7 +398,7 @@ def get_speaker_info(speaker_id: int, data: List) -> str:
 
 
 def get_version():
-    return requests.get(f'{ROOT_URL}/version')
+    return requests.get(f"{ROOT_URL}/version")
 
 
 def is_voicevox_launch(n_try: int = 5) -> bool:
@@ -340,34 +423,40 @@ def wait_until_voicevox_ready(timeout: float = 30):
     start = time.perf_counter()
     while (time.perf_counter() - start) < timeout:
         try:
-            logger.debug('waiting...')
+            logger.debug("waiting...")
             version = get_version()
             if version.status_code == 200:
                 # 接続確認できたので終了
                 break
         except Exception as e:
-            logger.debug(f'waiting voicevox start...:{str(e)}')
+            logger.debug(f"waiting voicevox start...:{str(e)}")
             time.sleep(0.1)
 
 
 def add_word(word: str, pronunce: str, accent_type: int = 1):
-    query_payload = {"surface": word, "pronunciation": pronunce, "accent_type": accent_type}
+    query_payload = {
+        "surface": word,
+        "pronunciation": pronunce,
+        "accent_type": accent_type,
+    }
 
-    r = requests.get(f"{ROOT_URL}/user_dict_word",
-                     params=query_payload, timeout=(10.0, 300.0))
+    r = requests.get(
+        f"{ROOT_URL}/user_dict_word", params=query_payload, timeout=(10.0, 300.0)
+    )
     if r.status_code == 200:
         query_data = r.json()
 
 
 def import_word_csv(csv_file: str, override: bool = True):
-    logger.debug('Import User Dict to Voicevox')
+    logger.debug("Import User Dict to Voicevox")
     if not os.path.exists(csv_file):
-        logger.warning(f'Not Found: user word dict : {csv_file}')
+        logger.warning(f"Not Found: user word dict : {csv_file}")
         return
     word_map = parse_user_dict_from_csv(csv_file)
-    r = requests.post(f"{ROOT_URL}/import_user_dict",
-                      params={'override': override}, json=word_map)
+    r = requests.post(
+        f"{ROOT_URL}/import_user_dict", params={"override": override}, json=word_map
+    )
     if r.status_code == 204:
-        logger.success('Import Success')
+        logger.success("Import Success")
     else:
-        logger.warning(f'Something Wrong:{r.content}')
+        logger.warning(f"Something Wrong:{r.content}")

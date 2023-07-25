@@ -9,7 +9,7 @@ def user_cache_dir(name: str) -> str:
     :param name:
     :return:
     """
-    cache_dir = os.path.join(os.path.expanduser('~'), '.cache', name)
+    cache_dir = os.path.join(os.path.expanduser("~"), ".cache", name)
     if not os.path.exists(cache_dir):
         Path(cache_dir).mkdir(parents=True, exist_ok=True)
     return cache_dir

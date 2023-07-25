@@ -1,7 +1,7 @@
 import os.path
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Final
+from typing import Final, Optional
 
 DATE_FORMAT = "%Y%m%d_%H%M%S"
 
