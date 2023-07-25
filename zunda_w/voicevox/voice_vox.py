@@ -86,14 +86,17 @@ def _request_and_write(filename: str, synth_payload, query_data) -> Optional[str
     return None
 
 
-def synthesis(text: str, speaker: int, output_dir: str, max_retry=20, query: VoiceVoxProfile = None):
+def synthesis(text: str, speaker: int, output_name: Optional[str], output_dir: str, max_retry=20,
+              query: VoiceVoxProfile = None, use_cache=True):
     """
     voicevoxにて合成音声を出力
     :param text:
     :param output_dir:
+    :param output_name: 出力ファイル名.Noneの場合queryから計算
     :param speaker:
     :param max_retry:
     :param query:
+    :param use_cache: False,強制的に上書きする
     :return:
     """
     # audio_query
@@ -113,11 +116,18 @@ def synthesis(text: str, speaker: int, output_dir: str, max_retry=20, query: Voi
     query_data = replace_query(query_data, query)
     # リクエストパラメータからキャッシュ値を計算
     cache_hash: str = str(concat_hash([dict_hash(query_payload)]))
-    output_file = os.path.join(output_dir, f'{cache_hash}.wav')
-
+    if output_name:
+        output_file = os.path.join(output_dir, f'{output_name}.wav')
+    else:
+        output_file = os.path.join(output_dir, f'{cache_hash}.wav')
+    if not use_cache and os.path.exists(output_file):
+        os.unlink(output_file)
     for synth_i in range(max_retry):
-        cached, output_file_name = cached_file(output_file,
-                                               lambda: _request_and_write(output_file, synth_payload, query_data))
+        if use_cache:
+            cached, output_file_name = cached_file(output_file,
+                                                   lambda: _request_and_write(output_file, synth_payload, query_data))
+        else:
+            cached, output_file_name = False, _request_and_write(output_file, synth_payload, query_data)
         if output_file_name is not None:
             logger.debug(f'{text[:15].ljust(15)} ->{"[cache] " if cached else ""} {output_file_name} ')
             return output_file_name
@@ -125,8 +135,8 @@ def synthesis(text: str, speaker: int, output_dir: str, max_retry=20, query: Voi
         raise ConnectionError("リトライ回数が上限に到達しました。 synthesis : ", output_dir, "/", text[:30], r, text)
 
 
-def synthesis_map(data, output_dir: str, query: VoiceVoxProfile):
-    return synthesis(data[0], data[1], output_dir=output_dir, query=query)
+def synthesis_map(data, output_dir: str, query: VoiceVoxProfile, use_cache: bool):
+    return synthesis(data[0], data[1], data[2], output_dir=output_dir, query=query, use_cache=use_cache)
 
 
 def output_path(idx: int, root: str) -> str:
@@ -151,11 +161,17 @@ def read_output_waves_from_dir(wave_dir: str) -> Generator[AudioSegment, None, N
         yield AudioSegment.from_file(os.path.join(wave_dir, src))
 
 
-def text_to_speech_order(contents: Sequence[str], speaker: Sequence[int], output_dir: str, query: VoiceVoxProfile) -> \
+def text_to_speech_order(contents: Sequence[str], speaker: Sequence[int], output_dir: str, query: VoiceVoxProfile,
+                         output_names: Optional[Sequence[str]] = None, use_cache: bool = False) -> \
         Sequence[str]:
+    if output_names is None:
+        output_names = [None for _ in range(len(contents))]
+    elif len(contents) != len(output_names):
+        raise ValueError('output_names length not equal contents')
     with ThreadPoolExecutor() as executor:
         results = []
-        for result in executor.map(partial(synthesis_map, output_dir=output_dir, query=query), zip(contents, speaker)):
+        for result in executor.map(partial(synthesis_map, output_dir=output_dir, query=query, use_cache=use_cache),
+                                   zip(contents, speaker, output_names)):
             logger.debug(result)
             results.append(result)
     return results
@@ -183,15 +199,18 @@ def text_to_speech(contents: Sequence[str], speaker: int, output_dir: str, query
 def run(srt_file: Union[str, Sequence[srt.Subtitle]], root_dir: str,
         speaker: Union[None, int, Sequence[int]] = None,
         query: VoiceVoxProfile = None,
-        output_dir: str = '.tts'):
+        output_dir: str = '.tts',
+        output_names: Optional[Sequence[str]] = None,
+        use_cache: bool = True):
     """
     srt(text) to speech を実行.
     出力した音声ファイルはsrtファイルの順番と一致する
     :param srt_file:
-    :param root_dir:
+    :param root_dir: 音声合成出力フォルダ
     :param speaker: Noneではsrt_fileのメタデータを参照
     :param query:
     :param output_dir:
+    :param use_cache: Falseの場合キャッシュをつかわない
     :return:
     """
     output_dir = Path(root_dir).joinpath(output_dir)
@@ -220,7 +239,8 @@ def run(srt_file: Union[str, Sequence[srt.Subtitle]], root_dir: str,
 
     subtitles = list(map(non_empty, subtitles))
 
-    return text_to_speech_order(subtitles, speaker, str(output_dir), query)
+    return text_to_speech_order(subtitles, speaker, str(output_dir), query, output_names=output_names,
+                                use_cache=use_cache)
 
 
 @dataclass_json
@@ -264,7 +284,7 @@ class Speakers:
         return {style_id: style_name for style_id, style_name in _data}
 
 
-def get_speakers(write_path: Optional[str] = None) -> Optional[Dict]:
+def get_speakers(write_path: Optional[str] = None) -> Optional[List[Dict]]:
     r = requests.get(f"{ROOT_URL}/speakers", )
     if r.status_code == 200:
         query_data = r.json()
