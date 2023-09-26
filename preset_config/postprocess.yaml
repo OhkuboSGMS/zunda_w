@@ -1,0 +1,4 @@
+prev_files: ['J:\PodCast\ずんだもん_イントロ.wav']
+no_detect_silence: true
+post_processes:
+  - word2kana
