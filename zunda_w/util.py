@@ -25,10 +25,15 @@ def try_json_parse(json_path: str) -> bool:
         return False
 
 
+def write_json(data: dict, json_path: Union[str, Path]):
+    with open(json_path, 'w') as fp:
+        json.dump(data, fp, indent=2, ensure_ascii=False)
+
+
 def write_srt(
-    path: Path, data: Sequence[srt.Subtitle], encoding: str = "UTF-8", reindex=False
+        path: Union[str, Path], data: Sequence[srt.Subtitle], encoding: str = "UTF-8", reindex=False
 ):
-    path.write_text(srt.compose(data, reindex=reindex), encoding=encoding)
+    Path(path).write_text(srt.compose(data, reindex=reindex), encoding=encoding)
 
 
 def read_srt(path: Path, encoding: str = "UTF-8") -> Sequence[srt.Subtitle]:

@@ -16,7 +16,7 @@ from zunda_w.etc import alert
 from zunda_w.output import OutputDir
 from zunda_w.postprocess.srt import postprocess as srt_postprocess
 from zunda_w.sentence.ginza_sentence import GinzaSentence
-from zunda_w.util import display_file_uri, file_uri, try_json_parse, write_srt
+from zunda_w.util import display_file_uri, file_uri, try_json_parse, write_srt, write_json
 from zunda_w.voicevox import download_voicevox, voice_vox
 from zunda_w.voicevox.voice_vox import VoiceVoxProfile, VoiceVoxProfiles
 from zunda_w.whisper_json import (
@@ -209,14 +209,17 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         compose.playback()
     # 音声は位置
     logger.debug("arrange audio")
-    output_srt = Path(arg.tool_output(arg.output)).with_suffix(".srt")
+    output_srt = str(Path(arg.tool_output(arg.output)).with_suffix(".srt"))
     output_wav = arg.tool_output(arg.output)
     output_mix = arg.tool_output(arg.mix_output)
+    output_compose_json = arg.tool_output("compose.json")
     logger.debug(f"export arrange srt to '{file_uri(output_srt)}")
     write_srt(output_srt, compose.srt)
     arrange_sound: AudioSegment = edit.arrange(compose)
     logger.debug(f"export arrange audio to '{file_uri(output_wav)}'", end="")
     arrange_sound.export(output_wav)
+    logger.debug(f"export compose json to {file_uri(output_compose_json)}")
+    write_json(compose.to_json(), output_compose_json)
     logger.success("finish process")
     yield "Finish", arg.output
     if len(arg.prev_files) > 0 or len(arg.next_files) > 0:

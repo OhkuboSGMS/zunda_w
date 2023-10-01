@@ -119,7 +119,7 @@ class API:
             sound = edit.arrange(
                 SpeakerCompose(
                     [
-                        SpeakerUnit(s, AudioSegment.from_file(a))
+                        SpeakerUnit(s, a)
                         for s, a in zip(subtitles, tts_files)
                     ],
                     time_duration,
