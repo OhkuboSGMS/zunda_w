@@ -16,7 +16,13 @@ from zunda_w.etc import alert
 from zunda_w.output import OutputDir
 from zunda_w.postprocess.srt import postprocess as srt_postprocess
 from zunda_w.sentence.ginza_sentence import GinzaSentence
-from zunda_w.util import display_file_uri, file_uri, try_json_parse, write_srt, write_json
+from zunda_w.util import (
+    display_file_uri,
+    file_uri,
+    try_json_parse,
+    write_json,
+    write_srt,
+)
 from zunda_w.voicevox import download_voicevox, voice_vox
 from zunda_w.voicevox.voice_vox import VoiceVoxProfile, VoiceVoxProfiles
 from zunda_w.whisper_json import (
@@ -81,9 +87,9 @@ class Options:
     @property
     def whisper_profile(self) -> WhisperProfile:
         if (
-                self.profile_json
-                and os.path.exists(self.profile_json)
-                and try_json_parse(self.profile_json)
+            self.profile_json
+            and os.path.exists(self.profile_json)
+            and try_json_parse(self.profile_json)
         ):
             return WhisperProfile.from_json(
                 Path(self.profile_json).read_text(encoding="UTF-8")
@@ -93,9 +99,9 @@ class Options:
 
     def voicevox_profiles(self, n: int) -> VoiceVoxProfiles:
         if (
-                self.v_profile_json
-                and os.path.exists(self.v_profile_json)
-                and try_json_parse(self.v_profile_json)
+            self.v_profile_json
+            and os.path.exists(self.v_profile_json)
+            and try_json_parse(self.v_profile_json)
         ):
             profile = json.loads(Path(self.v_profile_json).read_text(encoding="UTF-8"))
             return list(array_util.duplicate_last(profile, n))
@@ -179,7 +185,7 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     word_filter = WordFilter(arg.word_filter)
     # text to speech
     with voice_vox.voicevox_engine(
-            download_voicevox.extract_engine(root_dir=arg.engine_dir)
+        download_voicevox.extract_engine(root_dir=arg.engine_dir)
     ):
         # textファイルを speechする
         voice_vox.import_word_csv(arg.user_dict)

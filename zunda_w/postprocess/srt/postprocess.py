@@ -4,9 +4,7 @@ from loguru import logger
 
 from zunda_w.llm.convert_word_to_kana import word_to_kana
 
-_cmd_dict = {
-    "word2kana": word_to_kana
-}
+_cmd_dict = {"word2kana": word_to_kana}
 
 
 def post_process(srt_file: str, cmd_list: List[str]) -> str:

@@ -29,8 +29,8 @@ class SpeakerUnit:
         srt_dict["start"] = str(srt_dict["start"])
         srt_dict["end"] = str(srt_dict["end"])
         return {
-            'subtitle': srt_dict,
-            'audio_file': os.path.abspath(self.audio_file_path)
+            "subtitle": srt_dict,
+            "audio_file": os.path.abspath(self.audio_file_path),
         }
 
 
@@ -51,7 +51,9 @@ class SpeakerCompose:
         assert len(subtitles) == len(tts_files)
         compose = list(
             map(
-                lambda x: SpeakerUnit(x[0], AudioSegment.from_file(x[1]), audio_file_path=x[1]),
+                lambda x: SpeakerUnit(
+                    x[0], AudioSegment.from_file(x[1]), audio_file_path=x[1]
+                ),
                 zip(subtitles, tts_files),
             )
         )
@@ -61,7 +63,7 @@ class SpeakerCompose:
     def to_json(self) -> dict:
         return {
             "unit": [u.to_dict() for u in self.unit],
-            "n_length": str(self.n_length)
+            "n_length": str(self.n_length),
         }
 
     @cached_property
@@ -87,7 +89,7 @@ class SpeakerCompose:
 
 
 def _parse_with_id(
-        srt_file_path: str, id: int, encoding: str, wave_paths: Sequence[str]
+    srt_file_path: str, id: int, encoding: str, wave_paths: Sequence[str]
 ) -> List[SpeakerUnit]:
     subtitles = list(srt.parse(Path(srt_file_path).read_text(encoding=encoding)))
     for s in subtitles:
@@ -98,10 +100,10 @@ def _parse_with_id(
 
 
 def merge(
-        srt_files: Sequence[str],
-        tts_files: List[Sequence[str]],
-        encoding="UTF-8",
-        word_filter: WordFilter = None,
+    srt_files: Sequence[str],
+    tts_files: List[Sequence[str]],
+    encoding="UTF-8",
+    word_filter: WordFilter = None,
 ) -> SpeakerCompose:
     """
     SubtitleとAudiosを読み込み，時間順にソートする
@@ -126,10 +128,10 @@ def merge(
 
 
 def write_srt_with_meta(
-        srt_path: Path,
-        meta_data: Any = "",
-        output_path: Optional[Path] = None,
-        encoding="UTF-8",
+    srt_path: Path,
+    meta_data: Any = "",
+    output_path: Optional[Path] = None,
+    encoding="UTF-8",
 ) -> Path:
     """
     既存のsrtファイルにmetaデータを一律で設定して再度書き込む
