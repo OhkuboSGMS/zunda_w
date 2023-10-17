@@ -1,10 +1,14 @@
-from typing import List
+from typing import List, Dict, Callable
 
 from loguru import logger
 
 from zunda_w.llm.convert_word_to_kana import word_to_kana
+from zunda_w.postprocess.dummy import dummy
 
-_cmd_dict = {"word2kana": word_to_kana}
+_cmd_dict: Dict[str,Callable[[str], str]] = {
+    "word2kana": word_to_kana,
+    "dummy": dummy
+}
 
 
 def post_process(srt_file: str, cmd_list: List[str]) -> str:
