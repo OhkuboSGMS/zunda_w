@@ -82,6 +82,6 @@ def create_sample_voices(text: str, engine_dir: str, output: str = "sample_voice
 def compose(srt_file: str, compose_json: str, output_name: str = "compose.json", output_dir="output"):
     srts = read_srt(srt_file)
     compose = SpeakerCompose.from_json(compose_json)
-    output_dir = OutputDir(directory=output_dir)
+    output_dir = OutputDir(parent=output_dir)
 
     return write_json(compose.update_srt(srts).to_json(), output_dir(output_name))
