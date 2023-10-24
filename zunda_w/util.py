@@ -28,19 +28,19 @@ def try_json_parse(json_path: str) -> bool:
 def write_json(data: dict, json_path: Union[str, Path]):
     with open(json_path, "w") as fp:
         json.dump(data, fp, indent=2, ensure_ascii=False)
-
+    return json_path
 
 def write_srt(
-    path: Union[str, Path],
-    data: Sequence[srt.Subtitle],
-    encoding: str = "UTF-8",
-    reindex=False,
+        path: Union[str, Path],
+        data: Sequence[srt.Subtitle],
+        encoding: str = "UTF-8",
+        reindex=False,
 ):
     Path(path).write_text(srt.compose(data, reindex=reindex), encoding=encoding)
 
 
-def read_srt(path: Path, encoding: str = "UTF-8") -> Sequence[srt.Subtitle]:
-    return list(srt.parse(path.read_text(encoding=encoding)))
+def read_srt(path: Union[str, Path], encoding: str = "UTF-8") -> Sequence[srt.Subtitle]:
+    return list(srt.parse(Path(path).read_text(encoding=encoding)))
 
 
 def display_file_uri(path: str, print_func=print):
@@ -55,3 +55,7 @@ def display_file_uri(path: str, print_func=print):
 
 def file_uri(path: str) -> str:
     return Path(path).absolute().as_uri()
+
+
+def read_json(json_file: Union[str, Path]) -> dict:
+    return json.loads(Path(json_file).read_text())
