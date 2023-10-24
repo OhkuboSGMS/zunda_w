@@ -1,0 +1,7 @@
+no_detect_silence: true
+v_profile_json: v_profile_preset/movie_voice_profile.json
+speakers:
+- 3
+- 2
+- 8
+- 16
