@@ -139,7 +139,7 @@ def synthesis(
     synth_payload = {"speaker": speaker}
     query_data = replace_query(query_data, query)
     # リクエストパラメータからキャッシュ値を計算
-    cache_hash: str = str(concat_hash([dict_hash(query_payload)]))
+    cache_hash: str = str(concat_hash([dict_hash(query_data)]))
     if output_name:
         output_file = os.path.join(output_dir, f"{output_name}.wav")
     else:
