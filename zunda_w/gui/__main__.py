@@ -149,7 +149,7 @@ class ConverterApp(ft.UserControl):
 
     async def task_convert(self, files, preset):
         from zunda_w import __main__
-        from zunda_w.main import Options
+        from zunda_w.arg import Options
         conf = OmegaConf.structured(Options(audio_files=files, preset=preset))
         __main__._convert(conf)
 

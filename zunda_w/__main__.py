@@ -7,7 +7,8 @@ from omegaconf import OmegaConf
 from zunda_w.apis import cmd
 from zunda_w.etc import cmd_log
 from zunda_w.etc.tools import argv_omit, partial_doc
-from zunda_w.main import Options, main
+from zunda_w.main import main
+from zunda_w.arg import Options
 
 
 def _convert(conf, *args, **kwargs):

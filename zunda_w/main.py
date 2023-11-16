@@ -1,122 +1,47 @@
 import dataclasses
 import json
 import os
-from functools import cached_property
+import shutil
 from pathlib import Path
 from typing import Any, Iterator, List, Optional, Tuple
 
-from classopt import classopt
 from loguru import logger
 from omegaconf import OmegaConf, SCMode
 from pydub import AudioSegment
 
-from zunda_w import SpeakerCompose, array_util, cache, edit, file_hash, merge, silent
+from zunda_w import SpeakerCompose, edit, file_hash, merge, silent
 from zunda_w.audio import concatenate_from_file
+from zunda_w.constants import PRESET_NAME
 from zunda_w.etc import alert
-from zunda_w.output import OutputDir
+from zunda_w.arg import Options
 from zunda_w.postprocess.srt import postprocess as srt_postprocess
-from zunda_w.sentence.ginza_sentence import GinzaSentence
+from zunda_w.srt_ops import sort_srt_files
 from zunda_w.util import (
-    display_file_uri,
     file_uri,
-    try_json_parse,
     write_json,
     write_srt,
 )
 from zunda_w.voicevox import download_voicevox, voice_vox
-from zunda_w.voicevox.voice_vox import VoiceVoxProfile, VoiceVoxProfiles
 from zunda_w.whisper_json import (
-    WhisperProfile,
-    clean_model,
     transcribe_non_silence_srt,
     transcribe_with_config,
     whisper_context,
 )
 from zunda_w.words import WordFilter
 
+
 # 東北(ノーマル) ,四国(ノーマル),埼玉(ノーマル),九州(ノーマル)
-DEFAULT_SPEAKER_IDs = [3, 2, 8, 16]
-
-
-@classopt(default_long=True)
-class Options:
-    # 文字起こしする音声ファイル
-    audio_files: List[str] = []
-    # 合成後の音声の前にくっつける音声ファイル
-    prev_files: List[str] = []
-    # 合成後の音声の後にくっつける音声ファイル
-    next_files: List[str] = []
-    # 既存のsrtファイル audio_filesと二者択一
-    srt_file: Optional[str] = None
-    output_dir: str = "output"
-    output: str = "arrange.wav"
-    mix_output: str = "mix.wav"
-    speakers: List[int] = DEFAULT_SPEAKER_IDs
-    default_profile: WhisperProfile = WhisperProfile()
-    profile_json: str = "profile.json"
-    default_v_profile: VoiceVoxProfile = VoiceVoxProfile()
-    v_profile_json: str = "v_profile.json"
-    speaker_json: str = "speakers.json"
-    word_filter: str = "filter_word.txt"
-    prompt: str = "prompt.txt"
-    user_dict: str = "user_dict.csv"
-    no_detect_silence: bool = True
-    cache_root_dir: str = os.curdir
-    data_cache_dir: str = ".cache"
-    engine_cache_dir: str = cache.user_cache_dir("voicevox")
-    preset_file: str = "preset_config/default.yaml"
-    ginza: GinzaSentence = GinzaSentence()
-    post_processes: List[str] = []
-    text: str = "これはサンプルボイスです"
-    ostt: bool = False
-    otts: bool = False
-    playback: bool = False
-
-    @cached_property
-    def tool_output(self) -> OutputDir:
-        return OutputDir(parent=self.output_dir)
-
-    @property
-    def data_dir(self) -> str:
-        return os.path.join(self.cache_root_dir, self.data_cache_dir)
-
-    @property
-    def engine_dir(self) -> str:
-        return os.path.join(self.cache_root_dir, self.engine_cache_dir)
-
-    @property
-    def whisper_profile(self) -> WhisperProfile:
-        if (
-            self.profile_json
-            and os.path.exists(self.profile_json)
-            and try_json_parse(self.profile_json)
-        ):
-            return WhisperProfile.from_json(
-                Path(self.profile_json).read_text(encoding="UTF-8")
-            )
-        else:
-            return self.default_profile
-
-    def voicevox_profiles(self, n: int) -> VoiceVoxProfiles:
-        if (
-            self.v_profile_json
-            and os.path.exists(self.v_profile_json)
-            and try_json_parse(self.v_profile_json)
-        ):
-            profile = json.loads(Path(self.v_profile_json).read_text(encoding="UTF-8"))
-            return list(array_util.duplicate_last(profile, n))
-        else:
-            return [self.default_v_profile for i in range(n)]
-
-    @cached_property
-    def prompt_text(self) -> str:
-        return Path(self.prompt).read_text(encoding="UTF-8")
 
 
 def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     if arg.preset_file and os.path.exists(arg.preset_file):
-        preset = OmegaConf.load(arg.preset_file)
-        arg = OmegaConf.unsafe_merge(arg, preset)
+        if arg.preset != '' and arg.preset in PRESET_NAME:
+            # 指定プリセットを優先
+            preset = OmegaConf.load(Path(arg.preset_dir).joinpath(arg.preset).with_suffix('.yaml'))
+            arg = OmegaConf.unsafe_merge(arg, preset)
+        else:
+            preset = OmegaConf.load(arg.preset_file)
+            arg = OmegaConf.unsafe_merge(arg, preset)
 
     logger.info("Parameters:")
     logger.info(OmegaConf.to_yaml(arg))
@@ -124,6 +49,7 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     voicevox_process = None
     cache_tts = ".tts"
     cache_general_vv = ".cache/.voicevox"
+    sort_srt: bool = True
     audio_files = arg.audio_files
     speakers = arg.speakers
     whisper_profile = arg.whisper_profile
@@ -132,7 +58,8 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     voicevox_profiles = arg.voicevox_profiles(len(audio_files))
     if arg.audio_files is None:
         raise Exception("Pass Audios Files")
-    # まずspeech to textを行う,ファイルが既に文字お越し済みであれば，そのままファイルを返す
+    # まずspeech to textを行う,ファイルが既に文字起こし済みであれば，そのままファイルを返す
+    plain_stt_files = []
     stt_files = []
     audio_hashes = []
 
@@ -146,8 +73,8 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
             # srtファイルをそのまま返す
             if Path(original_audio).suffix == ".srt":
                 logger.debug("Skip Speech to Text : it's srt file")
-                stt_file = original_audio
-
+                stt_file = shutil.copy(original_audio, arg.tmp_file)
+                sort_srt = False
             # オリジナル音声の用意
             elif arg.no_detect_silence:
                 # 文字起こし
@@ -176,7 +103,11 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
                 )
                 post_process = True
             if post_process:
+                # TODO srt_postprocessに移動
                 stt_file = arg.ginza.reconstruct(stt_file, encoding="utf-8")
+
+            if len(arg.post_processes) > 0:
+                plain_stt_files.append(shutil.copy(stt_file, arg.tmp_file))
 
             srt_postprocess.post_process(stt_file, arg.post_processes)
             stt_files.append(stt_file)
@@ -185,7 +116,7 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     word_filter = WordFilter(arg.word_filter)
     # text to speech
     with voice_vox.voicevox_engine(
-        download_voicevox.extract_engine(root_dir=arg.engine_dir)
+            download_voicevox.extract_engine(root_dir=arg.engine_dir)
     ):
         # textファイルを speechする
         voice_vox.import_word_csv(arg.user_dict)
@@ -208,11 +139,9 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     # srt,audioのソート
     logger.debug("sort srt and audio")
     # 相槌をある程度フィルタリングする
-    compose: SpeakerCompose = merge(stt_files, tts_file_list, word_filter=word_filter)
+    compose: SpeakerCompose = merge(stt_files, tts_file_list, word_filter=word_filter, sort=sort_srt)
     yield "Merge Audio Files", compose
-    if arg.playback:
-        logger.debug("playback sort audio")
-        compose.playback()
+
     # 音声は位置
     logger.debug("arrange audio")
     output_srt = str(Path(arg.tool_output(arg.output)).with_suffix(".srt"))
@@ -221,6 +150,15 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     output_compose_json = arg.tool_output("compose.json")
     logger.debug(f"export arrange srt to '{file_uri(output_srt)}")
     write_srt(output_srt, compose.srt)
+    # post_processが入った場合はPlainなsrtをsrtファイルに出力
+    if len(plain_stt_files) > 0:
+        output_prev_srt = arg.tool_output("prev.srt")
+        output_prev_compose_json = arg.tool_output("prev_compose.json")
+        logger.debug(f'export before post-process srt:{file_uri(output_prev_srt)}')
+        psf_compose = sort_srt_files(plain_stt_files, word_filter=word_filter)
+        write_srt(output_prev_srt, psf_compose.srt)
+        # 後処理前のsttファイルと後処理後のttsファイルを組み合わせてcompose.jsonを作成
+        write_json(merge(plain_stt_files, tts_file_list, word_filter=word_filter).to_json(), output_prev_compose_json)
     arrange_sound: AudioSegment = edit.arrange(compose)
     logger.debug(f"export arrange audio to '{file_uri(output_wav)}'", end="")
     arrange_sound.export(output_wav)
@@ -234,4 +172,8 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         )
         mix_audio.export(output_mix)
         yield "Mix", output_mix
+    arg.close()
+    if arg.playback:
+        logger.debug("playback sort audio")
+        compose.playback()
     alert.alert()
