@@ -1,5 +1,6 @@
 import datetime
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
@@ -17,7 +18,20 @@ from zunda_w.words import WordFilter
 @dataclass
 class SpeakerUnit:
     subtitle: Subtitle
-    audio: AudioSegment
+    audio_file_path: str
+    audio: AudioSegment = field(init=False)
+
+    def __post_init__(self):
+        self.audio = AudioSegment.from_file(self.audio_file_path)
+
+    def to_dict(self) -> dict:
+        srt_dict = vars(self.subtitle)
+        srt_dict["start"] = str(srt_dict["start"])
+        srt_dict["end"] = str(srt_dict["end"])
+        return {
+            "subtitle": srt_dict,
+            "audio_file": os.path.abspath(self.audio_file_path),
+        }
 
 
 @dataclass
@@ -37,12 +51,20 @@ class SpeakerCompose:
         assert len(subtitles) == len(tts_files)
         compose = list(
             map(
-                lambda x: SpeakerUnit(x[0], AudioSegment.from_file(x[1])),
+                lambda x: SpeakerUnit(
+                    x[0], AudioSegment.from_file(x[1]), audio_file_path=x[1]
+                ),
                 zip(subtitles, tts_files),
             )
         )
         last_end = subtitles[-1].end
         return SpeakerCompose(tuple(compose), last_end)
+
+    def to_json(self) -> dict:
+        return {
+            "unit": [u.to_dict() for u in self.unit],
+            "n_length": str(self.n_length),
+        }
 
     @cached_property
     def audio_duration(self) -> datetime.timedelta:
@@ -73,8 +95,8 @@ def _parse_with_id(
     for s in subtitles:
         s.speaker = id
 
-    audio = list(read_output_waves(wave_paths))
-    return [SpeakerUnit(s, a) for s, a in zip(subtitles, audio)]
+    # audio = list(read_output_waves(wave_paths))
+    return [SpeakerUnit(s, a) for s, a in zip(subtitles, wave_paths)]
 
 
 def merge(

@@ -5,7 +5,9 @@ from loguru import logger
 from omegaconf import OmegaConf
 from pathvalidate import sanitize_filename
 
-from zunda_w import subtitle_util
+from zunda_w import subtitle_util, SpeakerCompose
+from zunda_w.output import OutputDir
+from zunda_w.util import read_srt, write_json
 from zunda_w.voicevox import download_voicevox, voice_vox
 
 
@@ -34,7 +36,7 @@ def show_speaker(output_json: str, engine_dir: str):
     :return:
     """
     with voice_vox.voicevox_engine(
-        download_voicevox.extract_engine(root_dir=engine_dir)
+            download_voicevox.extract_engine(root_dir=engine_dir)
     ):
         if speakers := voice_vox.get_speakers(output_json):
             print(voice_vox.format_speaker(speakers))
@@ -52,7 +54,7 @@ def create_sample_voices(text: str, engine_dir: str, output: str = "sample_voice
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     with voice_vox.voicevox_engine(
-        download_voicevox.extract_engine(root_dir=engine_dir)
+            download_voicevox.extract_engine(root_dir=engine_dir)
     ):
         if speakers := voice_vox.get_speakers():
             output_names = []
@@ -75,3 +77,11 @@ def create_sample_voices(text: str, engine_dir: str, output: str = "sample_voice
             )
         else:
             logger.warning("Can't get /speakers requests")
+
+
+def compose(srt_file: str, compose_json: str, output_name: str = "compose.json", output_dir="output"):
+    srts = read_srt(srt_file)
+    compose = SpeakerCompose.from_json(compose_json)
+    output_dir = OutputDir(parent=output_dir)
+
+    return write_json(compose.update_srt(srts).to_json(), output_dir(output_name))

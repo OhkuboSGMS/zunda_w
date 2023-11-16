@@ -118,10 +118,7 @@ class API:
         if merge:
             sound = edit.arrange(
                 SpeakerCompose(
-                    [
-                        SpeakerUnit(s, AudioSegment.from_file(a))
-                        for s, a in zip(subtitles, tts_files)
-                    ],
+                    [SpeakerUnit(s, a) for s, a in zip(subtitles, tts_files)],
                     time_duration,
                 )
             )
