@@ -81,7 +81,12 @@ class ConverterApp(ft.UserControl):
     is_convert = False
 
     def build(self):
-        self.audio_files = ft.Column()
+        self.audio_files = ft.Column(
+            controls=[
+                AudioFile(self.task_status_change, self.delete),
+                AudioFile(self.task_status_change, self.delete)
+            ]
+        )
         self.preset_select = ft.Dropdown(
             width=200,
             options=[ft.dropdown.Option(key=p, text=p) for p in PRESET_NAME],
