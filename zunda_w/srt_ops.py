@@ -11,18 +11,21 @@ from pydub import AudioSegment
 from pydub.playback import play
 from srt import Subtitle
 
-from zunda_w.voicevox.voice_vox import read_output_waves
+from zunda_w.util import read_srt, read_json
 from zunda_w.words import WordFilter
 
 
 @dataclass
 class SpeakerUnit:
     subtitle: Subtitle
-    audio_file_path: str
-    audio: AudioSegment = field(init=False)
+    audio_file_path: Optional[str]
+    audio: Optional[AudioSegment] = field(init=False)
 
     def __post_init__(self):
-        self.audio = AudioSegment.from_file(self.audio_file_path)
+        if self.audio_file_path and os.path.exists(self.audio_file_path):
+            self.audio = AudioSegment.from_file(self.audio_file_path)
+        else:
+            self.audio = None
 
     def to_dict(self) -> dict:
         srt_dict = vars(self.subtitle)
@@ -33,6 +36,12 @@ class SpeakerUnit:
             "audio_file": os.path.abspath(self.audio_file_path),
         }
 
+    @staticmethod
+    def from_dict(data: dict):
+        s = data['subtitle']
+        subtitle = Subtitle(s['index'], s['start'], s['end'], s['content'], s["proprietary"])
+        return SpeakerUnit(subtitle, data['audio_file'])
+
 
 @dataclass
 class SpeakerCompose:
@@ -41,7 +50,7 @@ class SpeakerCompose:
     n_length: datetime.timedelta
 
     @staticmethod
-    def from_srt(subtitles: Sequence[srt.Subtitle], tts_files: Sequence[str]):
+    def from_srt(subtitles: Sequence[Subtitle], tts_files: Sequence[str]):
         """
         srtファイルから合成音声を作成し，結合する場合にこのメソッドを使用する
         :param subtitles:
@@ -59,6 +68,11 @@ class SpeakerCompose:
         )
         last_end = subtitles[-1].end
         return SpeakerCompose(tuple(compose), last_end)
+
+    @staticmethod
+    def from_json(json_file: str):
+        _json = read_json(json_file)
+        return SpeakerCompose(tuple(map(SpeakerUnit.from_dict, _json["unit"])), _json["n_length"])
 
     def to_json(self) -> dict:
         return {
@@ -87,9 +101,20 @@ class SpeakerCompose:
         for unit in self.unit:
             play(unit.audio)
 
+    def update_srt(self, srts: Sequence[Subtitle]):
+        if len(srts) != len(self.unit):
+            for s, u in zip(srts, self.unit):
+                print(f'srt:{s.index} == compose:{u.subtitle.index}')
+
+                assert s.index == u.subtitle.index, f'{s.index}!={u.subtitle.index}'
+            raise ValueError(f'Not Equal n line of srt = {len(srts)} and n units = {len(self.unit)}')
+        for unit, s in zip(self.unit, srts):
+            unit.subtitle = s
+        return self
+
 
 def _parse_with_id(
-    srt_file_path: str, id: int, encoding: str, wave_paths: Sequence[str]
+        srt_file_path: str, id: int, encoding: str, wave_paths: Sequence[str]
 ) -> List[SpeakerUnit]:
     subtitles = list(srt.parse(Path(srt_file_path).read_text(encoding=encoding)))
     for s in subtitles:
@@ -99,11 +124,30 @@ def _parse_with_id(
     return [SpeakerUnit(s, a) for s, a in zip(subtitles, wave_paths)]
 
 
+def sort_srt_files(files: Sequence[str], word_filter: WordFilter = None,
+                   ) -> SpeakerCompose:
+    """
+    srtファイルのみでSpeakerComposeを構成する
+    :param files: 
+    :return: 
+    """
+    srts = map(read_srt, files)
+    units = list(map(lambda subtitle: SpeakerUnit(subtitle, None), chain.from_iterable(srts)))
+    units.sort(key=lambda s: s.subtitle.start)
+    if word_filter:
+        units = list(
+            filter(lambda unit: word_filter.is_exclude(unit.subtitle.content), units)
+        )
+    time_length = units[-1].subtitle.end
+    return SpeakerCompose(tuple(units), time_length)
+
+
 def merge(
-    srt_files: Sequence[str],
-    tts_files: List[Sequence[str]],
-    encoding="UTF-8",
-    word_filter: WordFilter = None,
+        srt_files: Sequence[str],
+        tts_files: List[Sequence[str]],
+        encoding="UTF-8",
+        word_filter: WordFilter = None,
+        sort: bool = True
 ) -> SpeakerCompose:
     """
     SubtitleとAudiosを読み込み，時間順にソートする
@@ -118,7 +162,8 @@ def merge(
             )
         )
     )
-    units.sort(key=lambda s: s.subtitle.start)
+    if sort:
+        units.sort(key=lambda s: s.subtitle.start)
     if word_filter:
         units = list(
             filter(lambda unit: word_filter.is_exclude(unit.subtitle.content), units)
@@ -128,10 +173,10 @@ def merge(
 
 
 def write_srt_with_meta(
-    srt_path: Path,
-    meta_data: Any = "",
-    output_path: Optional[Path] = None,
-    encoding="UTF-8",
+        srt_path: Path,
+        meta_data: Any = "",
+        output_path: Optional[Path] = None,
+        encoding="UTF-8",
 ) -> Path:
     """
     既存のsrtファイルにmetaデータを一律で設定して再度書き込む

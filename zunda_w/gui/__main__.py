@@ -81,7 +81,12 @@ class ConverterApp(ft.UserControl):
     is_convert = False
 
     def build(self):
-        self.audio_files = ft.Column()
+        self.audio_files = ft.Column(
+            controls=[
+                AudioFile(self.task_status_change, self.delete),
+                AudioFile(self.task_status_change, self.delete)
+            ]
+        )
         self.preset_select = ft.Dropdown(
             width=200,
             options=[ft.dropdown.Option(key=p, text=p) for p in PRESET_NAME],
@@ -149,7 +154,7 @@ class ConverterApp(ft.UserControl):
 
     async def task_convert(self, files, preset):
         from zunda_w import __main__
-        from zunda_w.main import Options
+        from zunda_w.arg import Options
         conf = OmegaConf.structured(Options(audio_files=files, preset=preset))
         __main__._convert(conf)
 
