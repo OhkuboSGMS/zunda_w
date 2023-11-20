@@ -22,6 +22,8 @@ def arrange(compose: SpeakerCompose) -> AudioSegment:
     zunda_duration = []
     for unit in compose.unit:  # tqdm(compose.unit, desc='Audio composing', unit='wav'):
         seg = unit.audio
+        if seg is None:
+            continue
         srt = unit.subtitle
         srt_duration = millisecond((srt.end - srt.start))
         duration = len(seg)  # millsecond(float)

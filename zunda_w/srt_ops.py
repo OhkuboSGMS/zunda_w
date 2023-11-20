@@ -23,7 +23,10 @@ class SpeakerUnit:
 
     def __post_init__(self):
         if self.audio_file_path and os.path.exists(self.audio_file_path):
-            self.audio = AudioSegment.from_file(self.audio_file_path)
+            if self.audio_file_path =='empty':
+                self.audio =None
+            else:
+                self.audio = AudioSegment.from_file(self.audio_file_path)
         else:
             self.audio = None
 
@@ -87,7 +90,7 @@ class SpeakerCompose:
         :return:
         """
         return datetime.timedelta(
-            milliseconds=sum(map(lambda x: len(x.audio), self.unit))
+            milliseconds=sum(map(lambda x: len(x.audio) if x.audio is not None else 0, self.unit))
         )
 
     @cached_property
@@ -99,7 +102,8 @@ class SpeakerCompose:
 
     def playback(self):
         for unit in self.unit:
-            play(unit.audio)
+            if unit:
+                play(unit.audio)
 
     def update_srt(self, srts: Sequence[Subtitle]):
         if len(srts) != len(self.unit):

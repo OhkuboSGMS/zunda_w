@@ -7,6 +7,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate
 from langchain.schema import SystemMessage
 from loguru import logger
+from zunda_w.postprocess.srt import tag
 
 
 def contains_alphabet(text) -> bool:
@@ -34,7 +35,8 @@ def word_to_kana(srt_file: str) -> str:
             HumanMessagePromptTemplate.from_template("# Input\n{input}\n\n#Output"),
         ]
     )
-    target_subtitles = list(filter(lambda stt: contains_alphabet(stt.content), srts))
+    target_subtitles = list(
+        filter(lambda stt: contains_alphabet(stt.content) and not tag.contain_any_tag(stt.content), srts))
     for s in target_subtitles:
         s.content = chat(
             chat_prompt.format_prompt(input=s.content).to_messages()
