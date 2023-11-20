@@ -32,6 +32,7 @@ from pydub import AudioSegment
 from zunda_w.cache import cached_file
 from zunda_w.hash import concat_hash, dict_hash
 from zunda_w.voicevox.voicevox_user_dict import parse_user_dict_from_csv
+from zunda_w.postprocess.srt import tag
 
 # TODO ポート番号の仕様チェック
 ROOT_URL = "http://localhost:50021"
@@ -101,13 +102,13 @@ def _request_and_write(filename: str, synth_payload, query_data) -> Optional[str
 
 
 def synthesis(
-    text: str,
-    speaker: int,
-    output_name: Optional[str],
-    output_dir: str,
-    max_retry=20,
-    query: VoiceVoxProfile = None,
-    use_cache=True,
+        text: str,
+        speaker: int,
+        output_name: Optional[str],
+        output_dir: str,
+        max_retry=20,
+        query: VoiceVoxProfile = None,
+        use_cache=True,
 ):
     """
     voicevoxにて合成音声を出力
@@ -120,6 +121,10 @@ def synthesis(
     :param use_cache: False,強制的に上書きする
     :return:
     """
+    # check text is tag
+    if tag.contain_tag(text, '[next]'):
+        empty_audio_file = 'empty'
+        return empty_audio_file
     # audio_query
     query_payload = {"text": text, "speaker": speaker}
     for query_i in range(max_retry):
@@ -167,7 +172,7 @@ def synthesis(
         )
 
 
-def synthesis_map(data, output_dir: str, query: VoiceVoxProfile, use_cache: bool):
+def synthesis_map(data: Tuple[str, int, Optional[str]], output_dir: str, query: VoiceVoxProfile, use_cache: bool):
     return synthesis(
         data[0],
         data[1],
@@ -201,12 +206,12 @@ def read_output_waves_from_dir(wave_dir: str) -> Generator[AudioSegment, None, N
 
 
 def text_to_speech_order(
-    contents: Sequence[str],
-    speaker: Sequence[int],
-    output_dir: str,
-    query: VoiceVoxProfile,
-    output_names: Optional[Sequence[str]] = None,
-    use_cache: bool = False,
+        contents: Sequence[str],
+        speaker: Sequence[int],
+        output_dir: str,
+        query: VoiceVoxProfile,
+        output_names: Optional[Sequence[str]] = None,
+        use_cache: bool = False,
 ) -> Sequence[str]:
     if output_names is None:
         output_names = [None for _ in range(len(contents))]
@@ -215,10 +220,10 @@ def text_to_speech_order(
     with ThreadPoolExecutor() as executor:
         results = []
         for result in executor.map(
-            partial(
-                synthesis_map, output_dir=output_dir, query=query, use_cache=use_cache
-            ),
-            zip(contents, speaker, output_names),
+                partial(
+                    synthesis_map, output_dir=output_dir, query=query, use_cache=use_cache
+                ),
+                zip(contents, speaker, output_names),
         ):
             logger.debug(result)
             results.append(result)
@@ -226,7 +231,7 @@ def text_to_speech_order(
 
 
 def text_to_speech(
-    contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile
+        contents: Sequence[str], speaker: int, output_dir: str, query: VoiceVoxProfile
 ) -> str:
     """
     VoiceVoxローカルサーバに対してリクエストを投げてttsを実行.
@@ -251,13 +256,13 @@ def text_to_speech(
 
 
 def run(
-    srt_file: Union[str, Sequence[srt.Subtitle]],
-    root_dir: str,
-    speaker: Union[None, int, Sequence[int]] = None,
-    query: VoiceVoxProfile = None,
-    output_dir: str = ".tts",
-    output_names: Optional[Sequence[str]] = None,
-    use_cache: bool = True,
+        srt_file: Union[str, Sequence[srt.Subtitle]],
+        root_dir: str,
+        speaker: Union[None, int, Sequence[int]] = None,
+        query: VoiceVoxProfile = None,
+        output_dir: str = ".tts",
+        output_names: Optional[Sequence[str]] = None,
+        use_cache: bool = True,
 ):
     """
     srt(text) to speech を実行.
