@@ -116,11 +116,9 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     word_filter = WordFilter(arg.word_filter)
     # text to speech
     with voice_vox.voicevox_engine(
-            download_voicevox.extract_engine(root_dir=arg.engine_dir)
-    ):
+            download_voicevox.extract_engine(root_dir=arg.engine_dir)):
         # textファイルを speechする
         voice_vox.import_word_csv(arg.user_dict)
-        speakers_data = json.loads(Path(arg.speaker_json).read_text(encoding="UTF-8"))
         tts_file_list: List[List[str]] = []
 
         for idx, (stt_file, audio_hash) in enumerate(zip(stt_files, audio_hashes)):

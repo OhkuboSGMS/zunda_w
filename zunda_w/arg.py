@@ -27,6 +27,7 @@ class Options:
     next_files: List[str] = []
     # 既存のsrtファイル audio_filesと二者択一
     srt_file: Optional[str] = None
+    target_dir: Optional[str] = None
     output_dir: str = "output"
     output: str = "arrange.wav"
     mix_output: str = "mix.wav"
@@ -56,7 +57,7 @@ class Options:
 
     @cached_property
     def tool_output(self) -> OutputDir:
-        return OutputDir(parent=self.output_dir)
+        return OutputDir(directory=self.target_dir, parent=self.output_dir)
 
     @property
     def data_dir(self) -> str:
