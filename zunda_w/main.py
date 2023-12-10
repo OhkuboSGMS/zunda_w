@@ -11,7 +11,6 @@ from pydub import AudioSegment
 
 from zunda_w import SpeakerCompose, edit, file_hash, merge, silent
 from zunda_w.audio import concatenate_from_file
-from zunda_w.constants import PRESET_NAME
 from zunda_w.etc import alert
 from zunda_w.arg import Options
 from zunda_w.postprocess.srt import postprocess as srt_postprocess
@@ -21,6 +20,7 @@ from zunda_w.util import (
     write_json,
     write_srt,
 )
+from zunda_w.constants import update_preset
 from zunda_w.voicevox import download_voicevox, voice_vox
 from zunda_w.whisper_json import (
     transcribe_non_silence_srt,
@@ -35,6 +35,8 @@ from zunda_w.words import WordFilter
 
 def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
     if arg.preset_file and os.path.exists(arg.preset_file):
+        update_preset(arg.preset_dir)
+        from zunda_w.constants import PRESET_NAME
         if arg.preset != '' and arg.preset in PRESET_NAME:
             # 指定プリセットを優先
             preset = OmegaConf.load(Path(arg.preset_dir).joinpath(arg.preset).with_suffix('.yaml'))

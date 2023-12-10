@@ -4,8 +4,6 @@ import flet as ft
 from flet_core import margin, FilePickerFileType
 from omegaconf import OmegaConf
 
-from zunda_w.constants import PRESET_NAME
-
 
 class AudioFile(ft.UserControl):
     def __init__(self, status_change, delete):
@@ -82,6 +80,10 @@ class ConverterApp(ft.UserControl):
     is_convert = False
 
     def build(self):
+        from zunda_w.constants import update_preset
+        update_preset("./preset_config")
+        from zunda_w.constants import PRESET_NAME
+
         self.audio_files = ft.Column(
             controls=[
                 AudioFile(self.task_status_change, self.delete),
