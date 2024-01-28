@@ -40,6 +40,8 @@ faster-whisper = "^0.9.0"
 pyannote-audio = "3.0.1"
 flet = "^0.12.1"
 whisperx = {git = "https://github.com/m-bain/whisperX.git"}
+transformers = "4.25.1"
+sentencepiece = "^0.1.99"
 
 [[tool.poetry.source]]
 name = "torch-cuda"

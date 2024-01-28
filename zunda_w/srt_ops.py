@@ -110,7 +110,7 @@ class SpeakerCompose:
             for s, u in zip(srts, self.unit):
                 print(f'srt:{s.index} == compose:{u.subtitle.index}')
 
-                assert s.index == u.subtitle.index, f'{s.index}!={u.subtitle.index}'
+                assert s.index == u.subtitle.index, f'{s.index}:{s.content}!={u.subtitle.index}:{u.subtitle.content}'
             raise ValueError(f'Not Equal n line of srt = {len(srts)} and n units = {len(self.unit)}')
         for unit, s in zip(self.unit, srts):
             unit.subtitle = s
