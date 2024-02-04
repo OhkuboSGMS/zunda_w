@@ -1,4 +1,5 @@
 import os
+import re
 
 import openai
 import requests
@@ -26,6 +27,11 @@ def summarize_title(content: str):
     return response["choices"][0]["message"]["content"]
 
 
+def filter_by_title(content: str):
+    pattern = r'(\d{4})-(\d{2})-(\d{2})'
+    return re.match(pattern, content) is not None
+
+
 def get_latest_note(team_path: str):
     """Get the latest note from the team.(HackMD API)
     :param team_path: The team path of the note.
@@ -36,21 +42,19 @@ def get_latest_note(team_path: str):
     base_url = "https://api.hackmd.io/v1"
     list_team_notes = f"/teams/{team_path}/notes"
     res = requests.get(base_url + list_team_notes, headers=headers)
-    latest_note = res.json()[0]
+    latest_note = list(filter(lambda x: filter_by_title(x["title"]), res.json()))
+    latest_note = latest_note[0]
     latest_note_id = latest_note["id"]
     get_note = f"/notes/{latest_note_id}"
     note = requests.get(base_url + get_note, headers=headers).json()
     return note["title"], note["content"]
 
 
-def create_podcast_description(team_path: str, output_dir: str):
+def create_podcast_description(team_path: str):
     """Create a podcast description from the latest note of the team.
     :param team_path: The team path of the note.
     :param output_dir: The output directory of the podcast description.
     """
     title, content = get_latest_note(team_path)
-    output_path = f"{output_dir}/{title}.md"
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(content)
     podcast_title = summarize_title(content)
-    return title, podcast_title, content, output_path
+    return title, podcast_title, content
