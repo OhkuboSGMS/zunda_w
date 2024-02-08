@@ -53,6 +53,13 @@ matplotlib = "^3.7.1"
 black = "^23.7.0"
 isort = "^5.12.0"
 poethepoet = "^0.21.1"
+pytest = "^7.4.3"
+
+
+[tool.poetry.group.podcast.dependencies]
+sfp-uploader = {git = "https://github.com/OhkuboSGMS/sfp_uploader.git"}
+beautifulsoup4 = "^4.12.3"
+atproto = "^0.0.40"
 
 [build-system]
 requires = ["poetry-core"]
