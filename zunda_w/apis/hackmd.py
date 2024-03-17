@@ -5,6 +5,7 @@ import openai
 import requests
 
 
+TITLE_PATTERN = r'(\d{4})/(\d{2})/(\d{2})'
 def summarize_title(content: str):
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
@@ -28,8 +29,7 @@ def summarize_title(content: str):
 
 
 def filter_by_title(content: str):
-    pattern = r'(\d{4})-(\d{2})-(\d{2})'
-    return re.match(pattern, content) is not None
+    return re.match(TITLE_PATTERN, content) is not None
 
 
 def get_latest_note(team_path: str):
