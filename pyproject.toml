@@ -27,17 +27,17 @@ omegaconf = "^2.3.0"
 ginza = "^5.1.2"
 ja-ginza-electra = "^5.1.2"
 torch = [
-    { version = "2.0.0", platform = "win32", source = "torch-cuda" },
+    { version = "2.0.0+cu118", platform = "win32", source = "torch-cuda" },
 ]
 torchaudio = [
-    { version = "2.0.0", platform = "win32", source = "torch-cuda" },
+    { version = "2.0.0+cu118", platform = "win32", source = "torch-cuda" },
 ]
 pathvalidate = "^3.1.0"
 pandas = "^2.0.3"
 langchain = "^0.0.300"
 nltk = "^3.8.1"
-faster-whisper = "^0.9.0"
-pyannote-audio = "3.0.1"
+faster-whisper = "1.0.0"
+pyannote-audio = "3.1.1"
 flet = "^0.12.1"
 whisperx = {git = "https://github.com/m-bain/whisperX.git"}
 transformers = "4.25.1"
@@ -67,7 +67,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 zunda = "zunda_w.__main__:_main"
-
+zunda_gui ="zunda_w.gui.main:__main__"
 [tool.poe.tasks]
 _black = "black ."
 _isort = "isort ."
