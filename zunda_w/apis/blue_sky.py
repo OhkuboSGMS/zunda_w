@@ -37,6 +37,8 @@ def embed_post(client: Client, text: Union[str, TextBuilder], title: str, descri
 
 
 def post_card(url: str):
+    if url is None:
+        raise ValueError("url is None")
     client = Client()
     client.login(os.environ["BLUE_SKY_ID"], os.environ["BLUE_SKY_PASS"])
 
@@ -46,7 +48,12 @@ def post_card(url: str):
         img_fp.write(requests.get(img_url).content)
         img_fp.seek(0)
 
-        text = f"Listen to \"{title}\" by とにかくヨシ！"
-        text_builder = TextBuilder().text('新しいエピソードが配信されました\n').text(text)
+        text = f"Listen to \"{title}\""
+        text_builder = TextBuilder() \
+            .text('新しいエピソードが配信されました\n') \
+            .text(text) \
+            .tag("#ポッドキャスト", "ポッドキャスト") \
+            .text(' ') \
+            .tag("#とにかくヨシ！", "とにかくヨシ！")
         result = embed_post(client, text_builder, title, description, url, img_fp)
     return result
