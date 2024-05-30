@@ -113,8 +113,8 @@ class ConverterApp(ft.UserControl):
         self.hack_md_memo_text = ft.Text("HackMD Memo:<Empty>")
         self.audio_files = ft.Column(
             controls=[
-                AudioFile(self.task_status_change, self.delete),
-                AudioFile(self.task_status_change, self.delete)
+                AudioFile(self.task_status_change, self.delete_file_picker),
+                AudioFile(self.task_status_change, self.delete_file_picker)
             ]
         )
         self.preset_select = ft.Dropdown(
@@ -178,7 +178,7 @@ class ConverterApp(ft.UserControl):
                 ft.Row(
                     controls=[
                         ft.FloatingActionButton(
-                            icon=ft.icons.ADD, on_click=self.add
+                            icon=ft.icons.ADD, on_click=self.add_file_picker
                         ),
                     ],
                     alignment=ft.MainAxisAlignment.END
@@ -408,15 +408,25 @@ class ConverterApp(ft.UserControl):
         await self.update_async()
         asyncio.create_task(self.task_convert(files, preset, publish_preset))
 
-    async def add(self, e):
-        audio_file_picker = AudioFile(self.task_status_change, self.delete)
+    async def add_file_picker(self, e):
+        """
+        FilePickerのItemを追加する
+        :param e:
+        :return:
+        """
+        audio_file_picker = AudioFile(self.task_status_change, self.delete_file_picker)
         self.audio_files.controls.append(audio_file_picker)
         await self.update_async()
 
     async def task_status_change(self, task):
         await self.update_async()
 
-    async def delete(self, task):
+    async def delete_file_picker(self, task):
+        """
+        FilePickerのItemを削除する
+        :param task:
+        :return:
+        """
         self.audio_files.controls.remove(task)
         await self.update_async()
 
