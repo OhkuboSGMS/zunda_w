@@ -60,6 +60,10 @@ pytest = "^7.4.3"
 sfp-uploader = {git = "https://github.com/OhkuboSGMS/sfp_uploader.git"}
 beautifulsoup4 = "^4.12.3"
 atproto = "^0.0.40"
+tweepy = "^4.14.0"
+markdown = "^3.6"
+mdx-linkify = "^2.1"
+anthropic = "^0.25.1"
 
 [build-system]
 requires = ["poetry-core"]

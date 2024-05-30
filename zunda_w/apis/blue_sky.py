@@ -9,6 +9,11 @@ from bs4 import BeautifulSoup
 
 
 def get_og_tags(url: str) -> Tuple[str, str, str]:
+    """
+    Get og:image, og:title, og:description from url
+    :param url:
+    :return: image url, title, description
+    """
     res = requests.get(url)
     html = res.text
     soup = BeautifulSoup(html, 'html.parser')

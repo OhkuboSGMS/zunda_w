@@ -18,9 +18,12 @@ def tweet(title: str, url: str):
         access_token=os.environ["ACCESS_TOKEN"],
         access_token_secret=os.environ["ACCESS_TOKEN_SECRET"]
     )
+    # TODO : テンプレートの外部化
     template = """新しいエピソードが配信されました
 Listen to \"{title}\"
 #ポッドキャスト #とにかくヨシ！
 {url}"""
 
     res = client.create_tweet(text=template.format(title=title, url=url))
+
+    return res
