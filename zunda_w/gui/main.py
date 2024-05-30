@@ -27,6 +27,9 @@ def read_preset(preset_name: str, preset_dir: str):
 
 
 class AudioFile(ft.UserControl):
+    """
+    音声と字幕ファイルを選択するためのコンポーネント
+    """
     def __init__(self, status_change, delete):
         super().__init__()
         self.path = None
