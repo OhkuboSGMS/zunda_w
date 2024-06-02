@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Final, List
 
 import flet as ft
+import markdown
 import yaml
 from flet_core import margin
 from loguru import logger
@@ -14,6 +15,7 @@ from pydub import effects
 from zunda_w import file_hash
 from zunda_w.apis import hackmd
 from zunda_w.apis import share
+from zunda_w.apis.podcast_upload import publish
 from zunda_w.constants import list_preset
 from zunda_w.llm import create_podcast_title
 from zunda_w.srt_ops import sort_srt_files
@@ -120,6 +122,7 @@ class ConverterApp(ft.UserControl):
         self.PRESETS: Final[List[str]] = default_preset
         self.PUBLISH_PRESETS: Final[List[str]] = publish_presets
         self.OUTPUT_DIR: Final[str] = default_output_dir
+        self.podcast_meta = {}
 
     def build(self):
         self.hack_md_memo_text = ft.Text("HackMD Memo:<Empty>")
@@ -221,7 +224,7 @@ class ConverterApp(ft.UserControl):
                 ),
                 ft.Row(
                     controls=[
-                        ft.ElevatedButton('Construct', visible=True, on_click=self.publish_setting),
+                        ft.ElevatedButton('Ready for Publish', visible=True, on_click=self.publish_setting),
                         self.title_text
                     ],
                     alignment=ft.MainAxisAlignment.START
@@ -262,6 +265,8 @@ class ConverterApp(ft.UserControl):
         if not publish_conf or not publish_conf["note"]["tag"]:
             raise ValueError("No tag in publish preset")
 
+        # TODO 最新のnoteを取得するのではなく、選択したnoteを取得するようにする。
+        # TODO noteがフィルタではじかれた場合はエラーを出力する
         # 2022/01/01のようなタイトル,mdの中身
         dir_title, content = hackmd.get_note(os.environ["HACKMD_TEAM_PATH"], tag=publish_conf["note"]["tag"])
 
@@ -280,54 +285,59 @@ class ConverterApp(ft.UserControl):
         await self.update_async()
 
     async def publish_setting(self, e):
+        """
+        配信用に諸々を準備する
+         1. 配信タイトルを生成
+         2. 出力
+         3.uiに反映
+        :param e:
+        :return:
+        """
         from zunda_w.arg import Options
         if self.podcast_meta is None:
             raise ValueError("No Podcast Meta")
         if "memo_path" not in self.podcast_meta:
-            raise ValueError("Run Construct Title First!")
+            raise ValueError("先にメモを取得してください")
         if "title" in self.podcast_meta:
+            logger.debug("既に生成済みのタイトルがあるため、再生成しません")
             return
         if not self.output_dir.value:
             raise ValueError("Run Construct Title First!")
-        memo_md = Path(self.podcast_meta["memo_path"]).read_text()
-        conf = Options()
-        conf.target_dir = self.output_dir.value
+
+        memo_md: str = Path(self.podcast_meta["memo_path"]).read_text()
+        conf = Options(target_dir=self.output_dir.value)
         publish_index = int(Path(os.environ["APP_PUBLISH_PRESET_DIR"]).joinpath("n.txt").read_text()) + 1
-        with open(conf.tool_output("title.txt"), "w") as f:
-            title = create_podcast_title.summarize_title(memo_md)
-            title = f"{publish_index}.{title}"
-            f.write(title)
-        print(conf.tool_output('title.txt'))
+        title = f"{publish_index}.{create_podcast_title.summarize_title(memo_md)}"
+        conf.tool_output("title.txt").write_text(title)
+
+        logger.debug(f"title path:{conf.tool_output('title.txt')} ,title:{title}")
         self.podcast_meta["title"] = title
         self.podcast_meta["title_path"] = conf.tool_output("title.txt")
 
+        # update ui
         self.title_text.value = title
         await self.update_async()
 
     async def publish_to_podcast(self, e):
-        from zunda_w.apis.podcast_upload import publish
         if self.output_file is None:
             print("Not Found Publish File")
             return
         try:
-            # TODO shownoteのmarkdownをhtmlに変換
-            #     markdown.markdownFromFile(input=md, output=md.replace(".md", ".html"),
-            #                               extensions=["mdx_linkify"])
             share_url = await publish(
                 os.environ["PODCAST_URL"],
                 os.environ["PODCAST_EMAIL"],
                 os.environ["PODCAST_PASSWORD"],
                 os.path.abspath(self.output_file),
                 Path(self.podcast_meta["title_path"]).read_text(),
-                Path(self.podcast_meta["memo_path"]).read_text(),
+                markdown.markdown(text=Path(self.podcast_meta["memo_path"]).read_text(), extensions=["mdx_linkify"]),
                 # TODO publish.ymlから取得,
                 timeout=360 * 1000  # 出すまでに時間がかかるので、長めに取っておく
                 # thumbnail=os.environ["PODCAST_THUMBNAIL"] if "PODCAST_THUMBNAIL" in os.environ else None,
             )
-            self.url = share_url
+            self.podcast_meta["share_url"] = share_url
             # OGタグが生成されるまで待つ
             await sleep(5)
-            await share(self.url, None)
+            await share(share_url, None)
         except Exception as e:
             logger.exception(e)
             print(e)
