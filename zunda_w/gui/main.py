@@ -12,8 +12,10 @@ from omegaconf import OmegaConf, SCMode
 from pydub import effects
 
 from zunda_w import file_hash
+from zunda_w.apis import hackmd
 from zunda_w.apis import share
 from zunda_w.constants import list_preset
+from zunda_w.llm import create_podcast_title
 from zunda_w.srt_ops import sort_srt_files
 from zunda_w.util import file_uri, read_srt
 from zunda_w.words import WordFilter
@@ -26,6 +28,13 @@ def read_preset(preset_name: str, preset_dir: str):
         return None
 
     return yaml.load(open(publish_conf_path), Loader=yaml.SafeLoader)
+
+
+def create_output_dir_if_not_exists(root_dir: str, name: str) -> str:
+    output_path = os.path.join(root_dir, name)
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+    return output_path
 
 
 class AudioFile(ft.UserControl):
@@ -106,10 +115,11 @@ class AudioFile(ft.UserControl):
 class ConverterApp(ft.UserControl):
     is_convert = False
 
-    def __init__(self, default_preset=(), publish_presets=()):
+    def __init__(self, default_preset=(), publish_presets=(), default_output_dir="./output"):
         super().__init__()
         self.PRESETS: Final[List[str]] = default_preset
         self.PUBLISH_PRESETS: Final[List[str]] = publish_presets
+        self.OUTPUT_DIR: Final[str] = default_output_dir
 
     def build(self):
         self.hack_md_memo_text = ft.Text("HackMD Memo:<Empty>")
@@ -163,9 +173,9 @@ class ConverterApp(ft.UserControl):
                     controls=[
                         self.hack_md_memo_text,
                         self.note_select,
-                        ft.ElevatedButton('Get Memo',
+                        ft.ElevatedButton('List Memo',
                                           on_click=self.get_memos),
-                        ft.ElevatedButton('Construct Title',
+                        ft.ElevatedButton('Get Memo',
                                           on_click=self.get_memo_from_hackmd)
                     ],
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN
@@ -227,7 +237,9 @@ class ConverterApp(ft.UserControl):
 
     async def get_memos(self, e):
         """
-        HackMDのメモを取得して表示する
+        HackMDのメモを取得してドロップダウンにセットする
+        Publish Presetのtagを取得して、そのtagでメモをフィルタリングして取得
+        :param e:
         """
         from zunda_w.apis.hackmd import get_notes
         team_path = os.environ["HACKMD_TEAM_PATH"]
@@ -236,46 +248,39 @@ class ConverterApp(ft.UserControl):
             notes = get_notes(team_path, tag=publish_conf["note"]["tag"])
             self.note_select.options = [ft.dropdown.Option(key=n["id"], text=n["title"]) for n in notes]
             self.note_select.value = notes[0]["id"]
+        else:
+            logger.warning(f"No tag in publish preset:{self.publish_select.value}")
         await self.update_async()
 
     async def get_memo_from_hackmd(self, e):
         """
-        Construct Titleをクリックしたときにの動作
-        選択されたHackMdのメモを取得して
+        選択されたメモを取得、フォルダを作成して、メモを保存
         :param e:
         :return:
         """
-        from zunda_w.apis.hackmd import get_note
-        team_path = os.environ["HACKMD_TEAM_PATH"]
         publish_conf = read_preset(self.publish_select.value, os.environ["APP_PUBLISH_PRESET_DIR"])
         if not publish_conf or not publish_conf["note"]["tag"]:
             raise ValueError("No tag in publish preset")
 
-        title, content = get_note(team_path, tag=publish_conf["note"]["tag"])
-        podcast_title = title
-        # TODO fix output style
-        output_dir = f"./output/{title}"
-        os.makedirs(output_dir, exist_ok=True)
-        # title_path = f"{output_dir}/title.txt"
-        # with open(title_path, "w") as f:
-        #     f.write(podcast_title)
-        memo_path = f"{output_dir}/memo.md"
-        with open(memo_path, "w") as f:
-            f.write(content)
+        # 2022/01/01のようなタイトル,mdの中身
+        dir_title, content = hackmd.get_note(os.environ["HACKMD_TEAM_PATH"], tag=publish_conf["note"]["tag"])
+
+        # 生成したメタデータを保存、uiに反映
+        output_dir_path: str = create_output_dir_if_not_exists(self.OUTPUT_DIR, dir_title)
+        logger.debug(f"Create Output Dir: {os.path.abspath(output_dir_path)}")
+        memo_path = f"{output_dir_path}/memo.md"
+        Path(memo_path).write_text(content)
 
         self.podcast_meta = {
-            # "title": podcast_title,
             "description": content,
-            # "title_path": title_path,
             "memo_path": memo_path,
         }
-        self.hack_md_memo_text.value = f"HackMD Memo:{title}"
-        self.output_dir.value = title
+        self.hack_md_memo_text.value = f"HackMD Memo:{dir_title}"
+        self.output_dir.value = dir_title
         await self.update_async()
 
     async def publish_setting(self, e):
         from zunda_w.arg import Options
-        from zunda_w.apis import hackmd
         if self.podcast_meta is None:
             raise ValueError("No Podcast Meta")
         if "memo_path" not in self.podcast_meta:
@@ -289,7 +294,7 @@ class ConverterApp(ft.UserControl):
         conf.target_dir = self.output_dir.value
         publish_index = int(Path(os.environ["APP_PUBLISH_PRESET_DIR"]).joinpath("n.txt").read_text()) + 1
         with open(conf.tool_output("title.txt"), "w") as f:
-            title = hackmd.summarize_title(memo_md)
+            title = create_podcast_title.summarize_title(memo_md)
             title = f"{publish_index}.{title}"
             f.write(title)
         print(conf.tool_output('title.txt'))

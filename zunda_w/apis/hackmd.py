@@ -1,60 +1,60 @@
 import os
 import re
+from typing import Optional
 
-import openai
 import requests
 
-
 TITLE_PATTERN = r'(\d{4})/(\d{2})/(\d{2})'
-def summarize_title(content: str):
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are help full assistant.\nマークダウン形式のテキストを与えます与えられたテキストからh1を抽出して/で区切って出力してください\n\n例:\n入力:\n# ポッドキャストを自動作成\nhttps://note.com/shingo2000/n/n31ebc6dfc28f\n# ネットで申し込みは誰のノルマか？\n保険に申し込んだ\n県民共済-総合型2\n\n### チップの話\nhttps://www.jiji.com/jc/v8?id=20230606world\nhttps://b.hatena.ne.jp/entry/s/news.yahoo.co.jp/articles/a61f20bb9b9bb577ca519655c7c250eb16af3236\n\n出力:\nポッドキャストを自動生成/ネットに申し込みは誰のノルマか？"
-            },
-            {
-                "role": "user",
-                "content": content
-            },
-        ],
-        temperature=0.1,
-        max_tokens=256,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0
-    )
-    return response["choices"][0]["message"]["content"]
+BASE_URL = "https://api.hackmd.io/v1"
 
 
 def filter_by_title(content: str):
+    """
+    ノートのタイトルをフィルタリングする.
+    パターンに合致する場合はTrueを返す.
+    タイトル例：
+    ok: 2022/01/01
+    ng: 2022/1/1
+
+    :param content:
+    :return:
+    """
     return re.match(TITLE_PATTERN, content) is not None
 
 
-def get_latest_note(team_path: str):
-    """Get the latest note from the team.(HackMD API)
+def get_notes(team_path: str, tag: Optional[str] = None):
+    """Get the latest notes from the team.(HackMD API)
+    Get a list of notes from the team: https://hackmd.io/@hackmd-api/developer-portal/https%3A%2F%2Fhackmd.io%2F%40hackmd-api%2Fuser-notes-api
     :param team_path: The team path of the note.
+    :param tag: The tag of the note.
     """
+    if os.environ["HACKMD_TOKEN"] is None:
+        raise ValueError("Please set environment variable, HACKMD_TOKEN")
     headers = {
         "Authorization": f"Bearer {os.environ['HACKMD_TOKEN']}"
     }
-    base_url = "https://api.hackmd.io/v1"
     list_team_notes = f"/teams/{team_path}/notes"
-    res = requests.get(base_url + list_team_notes, headers=headers)
-    latest_note = list(filter(lambda x: filter_by_title(x["title"]), res.json()))
-    latest_note = latest_note[0]
-    latest_note_id = latest_note["id"]
-    get_note = f"/notes/{latest_note_id}"
-    note = requests.get(base_url + get_note, headers=headers).json()
-    return note["title"], note["content"]
+    res = requests.get(BASE_URL + list_team_notes, headers=headers)
+    notes = res.json()
+    if tag:
+        notes = list(filter(lambda x: tag in x["tags"], notes))
+    return notes
 
 
-def create_podcast_description(team_path: str):
-    """Create a podcast description from the latest note of the team.
+def get_note(team_path: str, tag: Optional[str] = None):
+    """Get the latest note from the team.(HackMD API)
+
+    filter_by_title: ノートのタイトル特定のパターンに限定する.
     :param team_path: The team path of the note.
-    :param output_dir: The output directory of the podcast description.
     """
-    title, content = get_latest_note(team_path)
-    podcast_title = summarize_title(content)
-    return title, podcast_title, content
+    notes = get_notes(team_path, tag)
+    latest_note = list(filter(lambda x: filter_by_title(x["title"]), notes))
+    latest_note = latest_note[0]
+    note_id = latest_note["id"]
+
+    get_note_api = f"/notes/{note_id}"
+    headers = {
+        "Authorization": f"Bearer {os.environ['HACKMD_TOKEN']}"
+    }
+    note = requests.get(BASE_URL + get_note_api, headers=headers).json()
+    return note["title"], note["content"]
