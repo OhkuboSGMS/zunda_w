@@ -2,6 +2,7 @@ import asyncio
 import os
 from asyncio import sleep
 from pathlib import Path
+from typing import Final, List
 
 import flet as ft
 import yaml
@@ -12,6 +13,7 @@ from pydub import effects
 
 from zunda_w import file_hash
 from zunda_w.apis import share
+from zunda_w.constants import list_preset
 from zunda_w.srt_ops import sort_srt_files
 from zunda_w.util import file_uri, read_srt
 from zunda_w.words import WordFilter
@@ -30,6 +32,7 @@ class AudioFile(ft.UserControl):
     """
     音声と字幕ファイルを選択するためのコンポーネント
     """
+
     def __init__(self, status_change, delete):
         super().__init__()
         self.path = None
@@ -102,17 +105,13 @@ class AudioFile(ft.UserControl):
 
 class ConverterApp(ft.UserControl):
     is_convert = False
-    output_file = None
-    podcast_meta = {}
-    url = None
+
+    def __init__(self, default_preset=(), publish_presets=()):
+        super().__init__()
+        self.PRESETS: Final[List[str]] = default_preset
+        self.PUBLISH_PRESETS: Final[List[str]] = publish_presets
 
     def build(self):
-        # TODO 修正
-        PUBLISH_PRESET = list(map(lambda x: str(x.stem), Path(os.environ["APP_PUBLISH_PRESET_DIR"]).glob("*.yml")))
-        from zunda_w.constants import update_preset
-        update_preset("./preset_config")
-        from zunda_w.constants import PRESET_NAME
-
         self.hack_md_memo_text = ft.Text("HackMD Memo:<Empty>")
         self.audio_files = ft.Column(
             controls=[
@@ -122,13 +121,13 @@ class ConverterApp(ft.UserControl):
         )
         self.preset_select = ft.Dropdown(
             width=200,
-            options=[ft.dropdown.Option(key=p, text=p) for p in PRESET_NAME],
-            value=PRESET_NAME[0]
+            options=[ft.dropdown.Option(key=p, text=p) for p in self.PRESETS],
+            value=self.PRESETS[0]
         )
         self.publish_select = ft.Dropdown(
             width=150,
-            options=[ft.dropdown.Option(key=p, text=p) for p in PUBLISH_PRESET],
-            value=PUBLISH_PRESET[0]
+            options=[ft.dropdown.Option(key=p, text=p) for p in self.PUBLISH_PRESETS],
+            value=self.PUBLISH_PRESETS[0]
         )
         self.note_select = ft.Dropdown(
             width=150,
@@ -441,6 +440,8 @@ class ConverterApp(ft.UserControl):
 
 
 async def main(page: ft.Page):
+    presets = list_preset(os.environ["APP_EDIT_PRESET_DIR"], patterns=["*.yaml"])
+    publish_preset = list_preset(os.environ["APP_PUBLISH_PRESET_DIR"], patterns=["*.yml"])
     page.title = "とにかくヨシ！Studio"
     page.show_semantics_debugger = False
     page.window_visible = True
@@ -449,7 +450,7 @@ async def main(page: ft.Page):
     page.scroll = ft.ScrollMode.ADAPTIVE
 
     # create app control and add it to the page
-    await page.add_async(ConverterApp())
+    await page.add_async(ConverterApp(default_preset=presets, publish_presets=publish_preset))
 
 
 def __main__():
