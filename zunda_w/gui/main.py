@@ -43,6 +43,7 @@ class AudioFile(ft.UserControl):
     """
     音声と字幕ファイルを選択するためのコンポーネント
     """
+    extensions = ['wav', 'mp3', 'm4a', 'srt']
 
     def __init__(self, status_change, delete):
         super().__init__()
@@ -61,7 +62,7 @@ class AudioFile(ft.UserControl):
 
         async def pick(_):
             return await self.file_picker.pick_files_async(
-                allowed_extensions=['wav', 'mp3', 'srt'])
+                allowed_extensions=self.extensions)
 
         self.display_view = ft.Container(
             margin=margin.only(left=20),
