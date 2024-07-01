@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 from asyncio import sleep
 from pathlib import Path
 from typing import Final, List
@@ -10,14 +11,16 @@ import yaml
 from flet_core import margin
 from loguru import logger
 from omegaconf import OmegaConf, SCMode
-from pydub import effects
 
 from zunda_w import file_hash
 from zunda_w.apis import hackmd
 from zunda_w.apis import share
 from zunda_w.apis.podcast_upload import publish
+from zunda_w.arg import Options
 from zunda_w.constants import list_preset
-from zunda_w.llm import create_podcast_title
+from zunda_w.edit import edit_from_yml
+from zunda_w.llm import create_podcast_title, shownote
+from zunda_w.postprocess import normalize
 from zunda_w.srt_ops import sort_srt_files
 from zunda_w.util import file_uri, read_srt
 from zunda_w.words import WordFilter
@@ -37,6 +40,62 @@ def create_output_dir_if_not_exists(root_dir: str, name: str) -> str:
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     return output_path
+
+
+def convert(files, preset: str, publish_preset: str, output_dir: str):
+    """ポッドキャストの音声を変換(タスク)"""
+    from zunda_w import __main__
+    files = list(filter(lambda x: x is not None, files))
+    conf = OmegaConf.structured(Options(audio_files=files, preset=preset))
+
+    publish_conf = read_preset(publish_preset, os.environ["APP_PUBLISH_PRESET_DIR"])
+
+    if publish_conf is None:
+        # await self.update_progress(False)
+        return None, "Publish Preset Not Found"
+    if output_dir:
+        conf.target_dir = output_dir
+
+    if publish_conf.get("mode", "s2t2s") == "s2t2s":
+        output_file = __main__._convert(conf)
+        return output_file, None
+    elif publish_conf.get("mode") == "editor":
+        # TODO 修正
+        # TODO anthropicのAPI
+        # TODO 文字おこしの時系列順でショーノートを作る
+        conf.preset = preset
+        conf = OmegaConf.to_container(conf, structured_config_mode=SCMode.INSTANTIATE)
+        _audio = edit_from_yml(files, publish_conf)
+        # _audio = effects.normalize(_audio,0.3)
+        output_audio = conf.tool_output("mix.wav")
+        _audio.export(output_audio, format="wav")
+        normalize.ffmpeg_normalize(output_audio, output_audio)
+        conf.audio_files = [output_audio]
+        print(output_audio)
+        from zunda_w.whisper_json import (
+            transcribe_with_config,
+            whisper_context,
+        )
+        from zunda_w.llm import shownote
+        _s = time.perf_counter()
+        with whisper_context():
+            audio_hash = file_hash(output_audio)
+            stt_file = list(
+                transcribe_with_config(
+                    conf.audio_files,
+                    conf.whisper_profile,
+                    root_dir=os.path.join(conf.data_dir, audio_hash),
+                    meta_data="",
+                ))
+            print(stt_file)
+            compose = sort_srt_files(stt_file, word_filter=WordFilter(conf.word_filter))
+            output_srt = conf.tool_output("stt.srt")
+            compose.to_srt(output_srt)
+            print(file_uri(str(conf.tool_output)))
+        _e = time.perf_counter()
+        logger.info(f"Transcribe Time:{_e - _s:.2f}s")
+        output_file = output_audio
+        return output_file, None
 
 
 class AudioFile(ft.UserControl):
@@ -175,6 +234,14 @@ class ConverterApp(ft.UserControl):
                 ),
                 ft.Row(
                     controls=[
+                        ft.Text(value="Create Memo with Preset"),
+                        ft.ElevatedButton('Create',
+                                          on_click=self.create_memo),
+                    ],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                ),
+                ft.Row(
+                    controls=[
                         self.hack_md_memo_text,
                         self.note_select,
                         ft.ElevatedButton('List Memo',
@@ -239,6 +306,22 @@ class ConverterApp(ft.UserControl):
             ],
         )
 
+    async def create_memo(self, e):
+        """
+        収録用のメモをpublish_settingから作成
+        :param e:
+        :return:
+        """
+        from zunda_w.apis.hackmd import create_memo
+        team_path = os.environ["HACKMD_TEAM_PATH"]
+        publish_conf = read_preset(self.publish_select.value, os.environ["APP_PUBLISH_PRESET_DIR"])
+
+        create_memo(team_path,
+                    tag=publish_conf["note"]["tag"],
+                    template=publish_conf["note"]["template"],
+                    title=None)
+        await self.update_async()
+
     async def get_memos(self, e):
         """
         HackMDのメモを取得してドロップダウンにセットする
@@ -270,10 +353,11 @@ class ConverterApp(ft.UserControl):
         # TODO noteがフィルタではじかれた場合はエラーを出力する
         # 2022/01/01のようなタイトル,mdの中身
         dir_title, content = hackmd.get_note(os.environ["HACKMD_TEAM_PATH"], tag=publish_conf["note"]["tag"])
-
+        # Publish Config と合わせて出力フォルダを作成
+        dir_title = f'{dir_title}_{publish_conf["note"]["type"]}'
         # 生成したメタデータを保存、uiに反映
         output_dir_path: str = create_output_dir_if_not_exists(self.OUTPUT_DIR, dir_title)
-        logger.debug(f"Create Output Dir: {os.path.abspath(output_dir_path)}")
+        logger.debug(f"Create Output Dir: {Path(output_dir_path).absolute().as_uri()}")
         memo_path = f"{output_dir_path}/memo.md"
         Path(memo_path).write_text(content)
 
@@ -295,6 +379,9 @@ class ConverterApp(ft.UserControl):
         :return:
         """
         from zunda_w.arg import Options
+        publish_conf = read_preset(self.publish_select.value, os.environ["APP_PUBLISH_PRESET_DIR"])
+        if not publish_conf or not publish_conf["note"]["tag"]:
+            raise ValueError("No tag in publish preset")
         if self.podcast_meta is None:
             raise ValueError("No Podcast Meta")
         if "memo_path" not in self.podcast_meta:
@@ -308,8 +395,26 @@ class ConverterApp(ft.UserControl):
         memo_md: str = Path(self.podcast_meta["memo_path"]).read_text()
         conf = Options(target_dir=self.output_dir.value)
         publish_index = int(Path(os.environ["APP_PUBLISH_PRESET_DIR"]).joinpath("n.txt").read_text()) + 1
-        title = f"{publish_index}.{create_podcast_title.summarize_title(memo_md)}"
+        title = f"{publish_index}{publish_conf['note']['type']}.{create_podcast_title.summarize_title(memo_md)}"
         conf.tool_output("title.txt").write_text(title)
+        # Show Noteの作成
+        if "create_show_note" in publish_conf and publish_conf["create_show_note"]:
+            output_show_note = conf.tool_output("show_note.md")
+            output_transcript = conf.tool_output("stt.srt")
+            if "description" in self.podcast_meta:
+                if not os.path.exists(output_show_note) and os.path.exists(output_transcript):
+                    print("Create Show Note")
+                    transcript = "\n".join(map(lambda x: x.content, read_srt(output_transcript)))
+                    show_note, _ = shownote.create_show_note(transcript, self.podcast_meta["description"])
+                    Path(output_show_note).write_text(show_note)
+                else:
+                    print(f"Show Note Exists: {output_show_note}")
+            else:
+                print("No Description")
+
+            if os.path.exists(output_show_note):
+                self.podcast_meta["description"] = Path(output_show_note).read_text()
+                self.podcast_meta["memo_path"] = output_show_note
 
         logger.debug(f"title path:{conf.tool_output('title.txt')} ,title:{title}")
         self.podcast_meta["title"] = title
@@ -331,14 +436,14 @@ class ConverterApp(ft.UserControl):
                 os.path.abspath(self.output_file),
                 Path(self.podcast_meta["title_path"]).read_text(),
                 markdown.markdown(text=Path(self.podcast_meta["memo_path"]).read_text(), extensions=["mdx_linkify"]),
+                is_html=True,
+                timeout=360 * 1000,  # 出すまでに時間がかかるので、長めに取っておく
                 # TODO publish.ymlから取得,
-                timeout=360 * 1000  # 出すまでに時間がかかるので、長めに取っておく
                 # thumbnail=os.environ["PODCAST_THUMBNAIL"] if "PODCAST_THUMBNAIL" in os.environ else None,
             )
             self.podcast_meta["share_url"] = share_url
-            # OGタグが生成されるまで待つ
-            await sleep(5)
-            await share(share_url, None)
+
+            await share(share_url, None, retry=10)
         except Exception as e:
             logger.exception(e)
             print(e)
@@ -351,72 +456,26 @@ class ConverterApp(ft.UserControl):
 
     async def task_convert(self, files, preset: str, publish_preset: str):
         """ポッドキャストの音声を変換(タスク)"""
-        from zunda_w import __main__
-        from zunda_w.arg import Options
-        from zunda_w.edit import edit_from_yml
-        files = list(filter(lambda x: x is not None, files))
-        conf = OmegaConf.structured(Options(audio_files=files, preset=preset))
-
-        publish_conf = read_preset(publish_preset, os.environ["APP_PUBLISH_PRESET_DIR"])
-        if publish_conf is None:
+        output_dir = Path(self.output_dir.value)
+        try:
+            output_file, error = convert(files, preset, publish_preset, output_dir)
+            if error:
+                await self.update_progress(False)
+                return
+            self.output_file = output_file
+        except Exception as e:
+            logger.exception(e)
+            self.is_convert = False
             await self.update_progress(False)
+            await self.update_async()
             return
-        if self.output_dir.value:
-            conf.target_dir = self.output_dir.value
-
-        if publish_conf.get("mode", "s2t2s") == "s2t2s":
-            self.output_file = __main__._convert(conf)
-        elif publish_conf.get("mode") == "editor":
-            # TODO 修正
-            # TODO anthropicのAPI
-            # TODO 文字おこしの時系列順でショーノートを作る
-
-            conf.preset = preset
-            conf = OmegaConf.to_container(conf, structured_config_mode=SCMode.INSTANTIATE)
-            _audio = edit_from_yml(files, publish_conf)
-            _audio = effects.normalize(_audio)
-            output_audio = conf.tool_output("mix.wav")
-            _audio.export(output_audio, format="wav")
-            conf.audio_files = [output_audio]
-            print(output_audio)
-            from zunda_w.whisper_json import (
-                transcribe_with_config,
-                whisper_context,
-            )
-            from zunda_w.llm import shownote
-            with whisper_context():
-                audio_hash = file_hash(output_audio)
-                stt_file = list(
-                    transcribe_with_config(
-                        conf.audio_files,
-                        conf.whisper_profile,
-                        root_dir=os.path.join(conf.data_dir, audio_hash),
-                        meta_data="",
-                    ))
-                print(stt_file)
-                compose = sort_srt_files(stt_file, word_filter=WordFilter(conf.word_filter))
-                output_srt = conf.tool_output("stt.srt")
-                compose.to_srt(output_srt)
-                if "description" in self.podcast_meta:
-                    output_show_note = conf.tool_output("show_note.md")
-                    if not os.path.exists(output_show_note):
-                        print("Create Show Note")
-
-                        transcript = "\n".join(map(lambda x: x.content, read_srt(output_srt)))
-                        show_note, title = shownote.create_show_note(transcript, self.podcast_meta["description"])
-                        Path(output_show_note).write_text(show_note)
-                    else:
-                        print(f"Show Note Exists: {output_show_note}")
-                print(file_uri(str(conf.tool_output)))
-            self.output_file = output_audio
-
         self.progress.visible = False
         self.is_convert = False
         self.publish_button.visible = True
         await self.update_async()
 
     async def convert(self, e):
-        """ポッドキャストの音声を変換"""
+        """ポッドキャストの音声を変換"(UI Event)"""
         files = list(map(lambda x: x.path, self.audio_files.controls))
         preset = self.preset_select.value
         publish_preset = self.publish_select.value
@@ -461,6 +520,8 @@ async def main(page: ft.Page):
     page.title = "とにかくヨシ！Studio"
     page.show_semantics_debugger = False
     page.window_visible = True
+    page.window_width = 800
+    page.window_height = 850
 
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.scroll = ft.ScrollMode.ADAPTIVE

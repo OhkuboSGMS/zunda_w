@@ -1,5 +1,6 @@
 import os
 import re
+from datetime import datetime
 from typing import Optional
 
 import requests
@@ -58,3 +59,37 @@ def get_note(team_path: str, tag: Optional[str] = None):
     }
     note = requests.get(BASE_URL + get_note_api, headers=headers).json()
     return note["title"], note["content"]
+
+
+def create_memo(team_path: str, tag: Optional[str] = None, template: Optional[str] = None, title: Optional[str] = None):
+    """
+    Create a memo in the team.(HackMD API)
+    :param team_path:  The team path of the note.
+    :param tag: 設定するタグ(例: "side-b" )
+    :param template: 作成時に利用するテンプレート(markdown)
+    :param title:
+    :return:
+    """
+    if os.environ["HACKMD_TOKEN"] is None:
+        raise ValueError("Please set environment variable, HACKMD_TOKEN")
+
+    if title is None:
+        title = datetime.now().strftime("%Y-%m-%d")
+
+    yaml_meta = f"---\ntitle: \"{title}\"\ntags: {tag}\n---\n"
+    content = yaml_meta+template
+    headers = {
+        "Authorization": f"Bearer {os.environ['HACKMD_TOKEN']}",
+    }
+    body = {
+        # "title": title, # titleはyaml_metaに含める
+        "content": content,
+        "readPermission": "signed_in",
+        "writePermission": "signed_in",
+    }
+    create_team_note = f"/teams/{team_path}/notes"
+
+    res = requests.post(BASE_URL + create_team_note, headers=headers, json=body)
+    print(res.json())
+    if res.status_code != 201:
+        raise ValueError(f"Failed to create a note. status_code:{res.status_code}")
