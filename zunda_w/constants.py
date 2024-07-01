@@ -6,7 +6,7 @@ DEFAULT_SPEAKER_IDs = [3, 2, 8, 16]
 PRESET_NAME = ["default", "postprocess", "movie"]
 
 
-def list_preset(preset_dir: str, patterns=("*.yaml")):
+def list_preset(preset_dir: str, patterns=("*.yaml",)):
     """
     preset_dir配下のyamlファイル名を返す
     :param preset_dir:
