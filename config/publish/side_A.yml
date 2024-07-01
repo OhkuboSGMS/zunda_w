@@ -1,0 +1,11 @@
+mode: s2t2s
+publish:
+  thumbnail: 'thumbnail.png'
+
+note:
+  type: "A"
+  tag: 'side-A'
+  template: |- 
+    # A
+    # B
+    # C
