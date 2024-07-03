@@ -1,6 +1,6 @@
 mode: s2t2s
 publish:
-  thumbnail: 'thumbnail.png'
+  thumbnail: 'config/yoshi_zunda.png'
 
 note:
   type: "A"

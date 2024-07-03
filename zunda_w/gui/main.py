@@ -435,6 +435,8 @@ class ConverterApp(ft.UserControl):
         if self.output_file is None:
             print("Not Found Publish File")
             return
+        publish_conf = read_preset(self.publish_select.value, os.environ["APP_PUBLISH_PRESET_DIR"])
+
         try:
             share_url = await publish(
                 os.environ["PODCAST_URL"],
@@ -446,7 +448,7 @@ class ConverterApp(ft.UserControl):
                 is_html=True,
                 timeout=360 * 1000,  # 出すまでに時間がかかるので、長めに取っておく
                 # TODO publish.ymlから取得,
-                # thumbnail=os.environ["PODCAST_THUMBNAIL"] if "PODCAST_THUMBNAIL" in os.environ else None,
+                thumbnail=publish_conf["publish"]["thumbnail"],
             )
             self.podcast_meta["share_url"] = share_url
 
