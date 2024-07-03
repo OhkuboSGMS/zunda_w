@@ -292,6 +292,13 @@ class ConverterApp(ft.UserControl):
                 ),
                 ft.Row(
                     controls=[
+                        ft.ElevatedButton('Set File as Output',
+                                          on_click=self.set_file_as_output),
+                    ],
+                    alignment=ft.MainAxisAlignment.START
+                ),
+                ft.Row(
+                    controls=[
                         ft.ElevatedButton('Ready for Publish', visible=True, on_click=self.publish_setting),
                         self.title_text
                     ],
@@ -452,6 +459,16 @@ class ConverterApp(ft.UserControl):
     async def update_progress(self, status: bool):
         self.is_convert = status
         self.progress.visible = status
+        await self.update_async()
+
+    async def set_file_as_output(self, e):
+        files = list(map(lambda x: x.path, self.audio_files.controls))
+        if len(files) != 1:
+            logger.warning("Please select only one file for output")
+            return
+        self.output_file = files[0]
+        logger.info(f"Set Output File:{self.output_file}")
+        self.publish_button.visible = True
         await self.update_async()
 
     async def task_convert(self, files, preset: str, publish_preset: str):
