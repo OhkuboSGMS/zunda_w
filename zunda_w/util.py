@@ -1,7 +1,7 @@
 import hashlib
 import json
 from pathlib import Path
-from typing import Sequence, Union
+from typing import Sequence, Union, Optional
 
 import srt
 
@@ -30,6 +30,7 @@ def write_json(data: dict, json_path: Union[str, Path]):
         json.dump(data, fp, indent=2, ensure_ascii=False)
     return json_path
 
+
 def write_srt(
         path: Union[str, Path],
         data: Sequence[srt.Subtitle],
@@ -42,6 +43,30 @@ def write_srt(
 def read_srt(path: Union[str, Path], encoding: str = "UTF-8") -> Sequence[srt.Subtitle]:
     return list(srt.parse(Path(path).read_text(encoding=encoding)))
 
+
+def search(srts: Sequence[srt.Subtitle], index: Optional[int]=None, proprietary: Optional[str] = None) -> Optional[
+    srt.Subtitle]:
+    """
+    srtの中からindexかproprietaryで検索する
+    検索の順番はindex > proprietaryで行う.
+
+    :param srts:
+    :param index:
+    :param proprietary:
+    :return:
+    """
+    tmp = None
+    if index:
+        tmp = filter(lambda x: x.index == index, srts)
+    if proprietary:
+        tmp = filter(lambda x: x.proprietary == proprietary, tmp)
+    if tmp:
+        return next(tmp, None)
+
+def search_index(srts: Sequence[srt.Subtitle], index: Optional[int]=None, proprietary: Optional[str] = None)-> Optional[int]:
+    item = search(srts, index, proprietary)
+    if item:
+        return srts.index(item)
 
 def display_file_uri(path: str, print_func=print):
     """
