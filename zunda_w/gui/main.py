@@ -436,6 +436,7 @@ class ConverterApp(ft.UserControl):
             return
         publish_conf = read_preset(self.publish_select.value, os.environ["APP_PUBLISH_PRESET_DIR"])
 
+        thumbnail = publish_conf["publish"]["thumbnail"] if "thumbnail" in publish_conf.get("publish", {}) else None
         try:
             share_url = await publish(
                 os.environ["PODCAST_URL"],
@@ -447,7 +448,7 @@ class ConverterApp(ft.UserControl):
                 is_html=True,
                 timeout=360 * 1000,  # 出すまでに時間がかかるので、長めに取っておく
                 # TODO publish.ymlから取得,
-                thumbnail=publish_conf["publish"]["thumbnail"],
+                thumbnail=thumbnail,
             )
             self.podcast_meta["share_url"] = share_url
 
@@ -465,8 +466,7 @@ class ConverterApp(ft.UserControl):
     async def set_file_as_output(self, e):
         files = list(map(lambda x: x.path, self.audio_files.controls))
         if len(files) != 1:
-            logger.warning("Please select only one file for output")
-            return
+            logger.warning("Select First one file for output")
         self.output_file = files[0]
         logger.info(f"Set Output File:{self.output_file}")
         self.publish_button.visible = True
