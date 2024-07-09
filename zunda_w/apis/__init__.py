@@ -1,1 +1,1 @@
-from zunda_w.apis.__main__ import share
+from zunda_w.apis.share import share
