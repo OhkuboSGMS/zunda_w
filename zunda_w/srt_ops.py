@@ -11,7 +11,7 @@ from pydub import AudioSegment
 from pydub.playback import play
 from srt import Subtitle
 
-from zunda_w.util import read_srt, read_json
+from zunda_w.util import read_srt, read_json, write_srt
 from zunda_w.words import WordFilter
 
 
@@ -23,8 +23,8 @@ class SpeakerUnit:
 
     def __post_init__(self):
         if self.audio_file_path and os.path.exists(self.audio_file_path):
-            if self.audio_file_path =='empty':
-                self.audio =None
+            if self.audio_file_path == 'empty':
+                self.audio = None
             else:
                 self.audio = AudioSegment.from_file(self.audio_file_path)
         else:
@@ -82,6 +82,9 @@ class SpeakerCompose:
             "unit": [u.to_dict() for u in self.unit],
             "n_length": str(self.n_length),
         }
+
+    def to_srt(self, output_path: str):
+        write_srt(output_path, self.srt)
 
     @cached_property
     def audio_duration(self) -> datetime.timedelta:
