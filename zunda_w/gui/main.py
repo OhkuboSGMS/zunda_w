@@ -412,6 +412,7 @@ class ConverterApp(ft.UserControl):
                     transcript = "\n".join(map(lambda x: x.content, read_srt(output_transcript)))
                     show_note, _ = shownote.create_show_note(transcript, self.podcast_meta["description"])
                     Path(output_show_note).write_text(show_note)
+                    logger.debug(f"Show Note Path:{output_show_note.absolute().as_uri()}")
                 else:
                     print(f"Show Note Exists: {output_show_note}")
             else:
