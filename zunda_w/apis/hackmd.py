@@ -42,7 +42,23 @@ def get_notes(team_path: str, tag: Optional[str] = None):
     return notes
 
 
-def get_note(team_path: str, tag: Optional[str] = None):
+def get_note(team_path: str, note_id: str):
+    """Get a note from the team.(HackMD API)
+
+    :param team_path: The team path of the note.
+    :param note_id: The note id.
+    """
+    if os.environ["HACKMD_TOKEN"] is None:
+        raise ValueError("Please set environment variable, HACKMD_TOKEN")
+    get_note_api = f"/notes/{note_id}"
+    headers = {
+        "Authorization": f"Bearer {os.environ['HACKMD_TOKEN']}"
+    }
+    note = requests.get(BASE_URL + get_note_api, headers=headers).json()
+    return note["title"], note["content"]
+
+
+def get_latest_note(team_path: str, tag: Optional[str] = None):
     """Get the latest note from the team.(HackMD API)
 
     filter_by_title: ノートのタイトル特定のパターンに限定する.
@@ -53,12 +69,7 @@ def get_note(team_path: str, tag: Optional[str] = None):
     latest_note = latest_note[0]
     note_id = latest_note["id"]
 
-    get_note_api = f"/notes/{note_id}"
-    headers = {
-        "Authorization": f"Bearer {os.environ['HACKMD_TOKEN']}"
-    }
-    note = requests.get(BASE_URL + get_note_api, headers=headers).json()
-    return note["title"], note["content"]
+    return get_note(team_path, note_id)
 
 
 def create_memo(team_path: str, tag: Optional[str] = None, template: Optional[str] = None, title: Optional[str] = None):
@@ -77,7 +88,7 @@ def create_memo(team_path: str, tag: Optional[str] = None, template: Optional[st
         title = datetime.now().strftime("%Y-%m-%d")
 
     yaml_meta = f"---\ntitle: \"{title}\"\ntags: {tag}\n---\n"
-    content = yaml_meta+template
+    content = yaml_meta + template
     headers = {
         "Authorization": f"Bearer {os.environ['HACKMD_TOKEN']}",
     }

@@ -245,7 +245,7 @@ class ConverterApp(ft.UserControl):
                         self.hack_md_memo_text,
                         self.note_select,
                         ft.ElevatedButton('List Memo',
-                                          on_click=self.get_memos),
+                                          on_click=self.list_memo),
                         ft.ElevatedButton('Get Memo',
                                           on_click=self.get_memo_from_hackmd)
                     ],
@@ -329,7 +329,7 @@ class ConverterApp(ft.UserControl):
                     title=None)
         await self.update_async()
 
-    async def get_memos(self, e):
+    async def list_memo(self, e):
         """
         HackMDのメモを取得してドロップダウンにセットする
         Publish Presetのtagを取得して、そのtagでメモをフィルタリングして取得
@@ -352,14 +352,12 @@ class ConverterApp(ft.UserControl):
         :param e:
         :return:
         """
+        memo_id = self.note_select.value
         publish_conf = read_preset(self.publish_select.value, os.environ["APP_PUBLISH_PRESET_DIR"])
         if not publish_conf or not publish_conf["note"]["tag"]:
             raise ValueError("No tag in publish preset")
 
-        # TODO 最新のnoteを取得するのではなく、選択したnoteを取得するようにする。
-        # TODO noteがフィルタではじかれた場合はエラーを出力する
-        # 2022/01/01のようなタイトル,mdの中身
-        dir_title, content = hackmd.get_note(os.environ["HACKMD_TEAM_PATH"], tag=publish_conf["note"]["tag"])
+        dir_title, content = hackmd.get_note(os.environ["HACKMD_TEAM_PATH"], memo_id)
         # Publish Config と合わせて出力フォルダを作成
         dir_title = f'{dir_title}_{publish_conf["note"]["type"]}'
         # 生成したメタデータを保存、uiに反映
