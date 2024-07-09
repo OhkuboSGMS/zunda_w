@@ -5,10 +5,10 @@ from loguru import logger
 from omegaconf import OmegaConf
 
 from zunda_w.apis import cmd
+from zunda_w.arg import Options
 from zunda_w.etc import cmd_log
 from zunda_w.etc.tools import argv_omit, partial_doc
 from zunda_w.main import main
-from zunda_w.arg import Options
 
 
 def _convert(conf, *args, **kwargs):
@@ -19,9 +19,11 @@ def _convert(conf, *args, **kwargs):
     :param kwargs:
     :return:
     """
+    last_output = None
     for msg, data in main(conf):
         logger.debug(msg)
-#        logger.debug(data)
+        last_output = data
+    return last_output
 
 
 option_arg_commands = ["convert", "preset", "clear", "speaker", "sample_voice"]
