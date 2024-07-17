@@ -13,8 +13,7 @@ from loguru import logger
 from omegaconf import OmegaConf, SCMode
 
 from zunda_w import file_hash
-from zunda_w.apis import hackmd
-from zunda_w.apis import share
+from zunda_w.apis import hackmd, share
 from zunda_w.apis.podcast_upload import publish
 from zunda_w.arg import Options
 from zunda_w.constants import list_preset
