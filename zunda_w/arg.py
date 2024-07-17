@@ -37,7 +37,7 @@ class Options:
     default_v_profile: VoiceVoxProfile = VoiceVoxProfile()
     v_profile_json: str = "v_profile.json"
     speaker_json: str = "speakers.json"
-    word_filter: str = "filter_word.txt"
+    word_filter: str = "config/filter_word.txt"
     prompt: str = "prompt.txt"
     user_dict: str = "user_dict.csv"
     no_detect_silence: bool = True
