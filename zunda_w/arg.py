@@ -39,7 +39,7 @@ class Options:
     speaker_json: str = "speakers.json"
     word_filter: str = "config/filter_word.txt"
     prompt: str = "prompt.txt"
-    user_dict: str = "user_dict.csv"
+    user_dict: str = "config/user_dict.csv"
     no_detect_silence: bool = True
     cache_root_dir: str = os.curdir
     data_cache_dir: str = ".cache"
