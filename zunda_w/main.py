@@ -1,5 +1,4 @@
 import dataclasses
-import json
 import os
 import shutil
 from pathlib import Path
@@ -10,9 +9,10 @@ from omegaconf import OmegaConf, SCMode
 from pydub import AudioSegment
 
 from zunda_w import SpeakerCompose, edit, file_hash, merge, silent
-from zunda_w.audio import concatenate_from_file
-from zunda_w.etc import alert
 from zunda_w.arg import Options
+from zunda_w.audio import concatenate_from_file
+from zunda_w.constants import update_preset
+from zunda_w.etc import alert
 from zunda_w.postprocess.srt import postprocess as srt_postprocess
 from zunda_w.srt_ops import sort_srt_files
 from zunda_w.util import (
@@ -20,7 +20,6 @@ from zunda_w.util import (
     write_json,
     write_srt,
 )
-from zunda_w.constants import update_preset
 from zunda_w.voicevox import download_voicevox, voice_vox
 from zunda_w.whisper_json import (
     transcribe_non_silence_srt,
@@ -110,7 +109,7 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
 
             if len(arg.post_processes) > 0:
                 plain_stt_files.append(shutil.copy(stt_file, arg.tmp_file))
-
+            # １# TODO Postprocessの結果がキャッシュにも反映されているため，キャッシュの値が変わってしまうと中身が毎回同じ結果にならない
             srt_postprocess.post_process(stt_file, arg.post_processes)
             stt_files.append(stt_file)
             audio_hashes.append(audio_hash)
@@ -160,6 +159,7 @@ def main(arg: Options) -> Iterator[Tuple[str, Optional[Any]]]:
         # 後処理前のsttファイルと後処理後のttsファイルを組み合わせてcompose.jsonを作成
         write_json(merge(plain_stt_files, tts_file_list, word_filter=word_filter).to_json(), output_prev_compose_json)
     arrange_sound: AudioSegment = edit.arrange(compose)
+    logger.debug(f"export directory {file_uri(str(Path(output_srt).parent))}")
     logger.debug(f"export arrange audio to '{file_uri(output_wav)}'", end="")
     arrange_sound.export(output_wav)
     logger.debug(f"export compose json to {file_uri(output_compose_json)}")
