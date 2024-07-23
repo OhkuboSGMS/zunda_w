@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple, Sequence
+from typing import Tuple, Sequence, Optional
 
 import requests as req
 
@@ -9,13 +9,19 @@ BASE_URL = "https://blog.hatena.ne.jp/{}/{}/atom"
 
 TEMPLATE_FILE = os.path.join(os.path.dirname(__file__), "hatena_blog_post_template.xml")
 
+from loguru import logger
+
 
 def _as_category_tag(categories: Sequence) -> str:
     return "\n".join([f"<category term='{e}'/>" for e in categories])
 
 
+def escape_xml(s: str) -> str:
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def post_blog(title: str, content: str, categories=(), updated: str = "", draft: bool = False,
-              template_file: str = TEMPLATE_FILE) -> Tuple[int, str]:
+              template_file: str = TEMPLATE_FILE) -> Tuple[int, Optional[str]]:
     """
     Hateba blog post APIを使って、はてなブログに投稿する
     https://developer.hatena.ne.jp/ja/documents/blog/apis/atom#%E3%83%96%E3%83%AD%E3%82%B0%E3%82%A8%E3%83%B3%E3%83%88%E3%83%AA%E3%81%AE%E6%8A%95%E7%A8%BF
@@ -42,8 +48,10 @@ def post_blog(title: str, content: str, categories=(), updated: str = "", draft:
     draft = "yes" if draft else "no"
     categories = _as_category_tag(categories) if categories else ""
     custom_url = datetime.now().strftime("%Y-%m-%d")
-
+    content = escape_xml(content)
     xml = template.format(title=title, content=content, updated=updated, draft=draft, categories=categories,
-                          blog_url=custom_url).encode()
-    r = req.post(f"{url}/entry", auth=(HATENA_ID, API_KEY), data=xml)
-    return r.status_code, r.headers["Location"]
+                          blog_url=custom_url)
+    xml_bytes = xml.encode("utf-8")
+    r = req.post(f"{url}/entry", auth=(HATENA_ID, API_KEY), data=xml_bytes)
+    logger.debug(f"[はてなブログ] Posted to {url}/entry:{r.content.decode()}")
+    return r.status_code, r.headers.get("Location", default=None)

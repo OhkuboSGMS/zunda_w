@@ -3,7 +3,7 @@
        xmlns:app="http://www.w3.org/2007/app">
   <title>{title}</title>
   <author><name>name</name></author>
-  <content type="text/plain">{content}</content>
+  <content type="text/markdown">{content}</content>
   <updated>{updated}</updated>
   {categories}
   <app:control>
