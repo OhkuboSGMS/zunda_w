@@ -21,7 +21,8 @@ def escape_xml(s: str) -> str:
 
 
 def post_blog(title: str, content: str, categories=(), updated: str = "", draft: bool = False,
-              template_file: str = TEMPLATE_FILE) -> Tuple[int, Optional[str]]:
+              template_file: str = TEMPLATE_FILE,
+              custom_url: Optional[str] = None) -> Tuple[int, Optional[str]]:
     """
     Hateba blog post APIを使って、はてなブログに投稿する
     https://developer.hatena.ne.jp/ja/documents/blog/apis/atom#%E3%83%96%E3%83%AD%E3%82%B0%E3%82%A8%E3%83%B3%E3%83%88%E3%83%AA%E3%81%AE%E6%8A%95%E7%A8%BF
@@ -47,7 +48,7 @@ def post_blog(title: str, content: str, categories=(), updated: str = "", draft:
     updated = updated if updated else datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     draft = "yes" if draft else "no"
     categories = _as_category_tag(categories) if categories else ""
-    custom_url = datetime.now().strftime("%Y-%m-%d")
+    custom_url = custom_url if custom_url else datetime.now().strftime("%Y-%m-%d")
     content = escape_xml(content)
     xml = template.format(title=title, content=content, updated=updated, draft=draft, categories=categories,
                           blog_url=custom_url)
