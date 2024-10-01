@@ -5,7 +5,14 @@ publish:
 note:
   type: "A"
   tag: 'side-A'
-  template: |- 
+  template: |-
     # A
     # B
     # C
+
+speak:
+  labels:
+    - id: "3"
+      name: "まっと"
+    - id: "2"
+      name: "大久保"

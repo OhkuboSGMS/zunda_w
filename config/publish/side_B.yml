@@ -2,7 +2,8 @@ mode: editor
 create_show_note: true
 components:
   - audio:
-      path: 'J:\PodCast\sound_resource\side-B\intro.wav'
+      path: 'J:\PycharmProjects\zunda_w\preset_sound\001_ずんだもん（ノーマル）_とにかくヨシ！B面！.wav'
+#      path: 'J:\PodCast\sound_resource\side-B\intro.wav'
   - audio_placeholder:
       index: 0
       var: 0
@@ -20,6 +21,12 @@ note:
     # B
     # C
 
+speak:
+  labels:
+    - id: "3"
+      name: "まっと"
+    - id: "2"
+      name: "大久保"
 
 publish:
   explicit: true
