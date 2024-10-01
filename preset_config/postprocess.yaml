@@ -2,3 +2,4 @@ prev_files: ['J:\PodCast\movie_resource\ずんだもん_イントロ.wav']
 no_detect_silence: true
 post_processes:
   - word2kana
+#  - emotion_analysis
