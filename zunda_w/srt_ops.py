@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple, Dict
 
 import srt
 from pydub import AudioSegment
@@ -200,3 +200,17 @@ def write_srt_with_meta(
 
     output_path.write_text(srt.compose(subtitles), encoding=encoding)
     return output_path
+
+
+# 装飾
+def srt_as_blog_content(content: str, label_map: Dict[str, str]) -> str:
+    """
+    srt形式のファイルをブログ記事に用に体裁を修正する
+    時系列表示をけす、 proprietaryをラベルに変換
+    :param content: srt形式の文字列(ファイルパスではない)
+    :param label_map: proprietaryをラベルに変換するための辞書
+    :return:
+    """
+    # markdownに埋め込む場合[,]はエスケープする必要がある
+    srt_list = list(map(lambda x: f"({label_map[x.proprietary]}):{x.content}<br>", srt.parse(content)))
+    return "\n".join([x for x in srt_list])
