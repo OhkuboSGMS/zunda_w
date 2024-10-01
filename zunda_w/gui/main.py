@@ -1,12 +1,13 @@
 import asyncio
+import importlib
 import os
 import time
-from asyncio import sleep
 from pathlib import Path
-from typing import Final, List
+from typing import Final, List, Dict
 
 import flet as ft
 import markdown
+import sfp_uploader
 import yaml
 from flet_core import margin
 from loguru import logger
@@ -14,13 +15,12 @@ from omegaconf import OmegaConf, SCMode
 
 from zunda_w import file_hash
 from zunda_w.apis import hackmd, share
-from zunda_w.apis.podcast_upload import publish
 from zunda_w.arg import Options
 from zunda_w.constants import list_preset
 from zunda_w.edit import edit_from_yml
-from zunda_w.llm import create_podcast_title, shownote
+from zunda_w.llm import create_podcast_title, shownote, create_blog_categories
 from zunda_w.postprocess import normalize
-from zunda_w.srt_ops import sort_srt_files
+from zunda_w.srt_ops import sort_srt_files, srt_as_blog_content
 from zunda_w.util import file_uri, read_srt
 from zunda_w.words import WordFilter
 
@@ -422,6 +422,8 @@ class ConverterApp(ft.UserControl):
                 self.podcast_meta["memo_path"] = output_show_note
 
         logger.debug(f"title path:{conf.tool_output('title.txt')} ,title:{title}")
+        self.podcast_meta["episode_number"] = publish_index
+        self.podcast_meta["transcript"] = conf.tool_output("stt.srt").read_text()
         self.podcast_meta["title"] = title
         self.podcast_meta["title_path"] = conf.tool_output("title.txt")
 
@@ -437,7 +439,9 @@ class ConverterApp(ft.UserControl):
 
         thumbnail = publish_conf["publish"]["thumbnail"] if "thumbnail" in publish_conf.get("publish", {}) else None
         try:
-            share_url = await publish(
+            # importlib.reload(sfp_uploader)
+            logger.info("Launch Publish Browser")
+            share_url = await sfp_uploader.publish(
                 os.environ["PODCAST_URL"],
                 os.environ["PODCAST_EMAIL"],
                 os.environ["PODCAST_PASSWORD"],
@@ -445,13 +449,26 @@ class ConverterApp(ft.UserControl):
                 Path(self.podcast_meta["title_path"]).read_text(),
                 markdown.markdown(text=Path(self.podcast_meta["memo_path"]).read_text(), extensions=["mdx_linkify"]),
                 is_html=True,
-                timeout=360 * 1000,  # 出すまでに時間がかかるので、長めに取っておく
-                # TODO publish.ymlから取得,
+                timeout=720 * 1000,  # 出すまでに時間がかかるので、長めに取っておく。720秒
                 thumbnail=thumbnail,
+                is_publish=True,
+
             )
             self.podcast_meta["share_url"] = share_url
+            categories = create_blog_categories.create(self.podcast_meta["transcript"])
+            blog_title = f"ポッドキャスト-とにかくヨシ!-第{self.podcast_meta['episode_number']:04d}回 {self.podcast_meta['title']}　アーカイブ"
+            stt_label_map: List[Dict] = publish_conf["speak"]["labels"]
+            stt_label_map: Dict[str, str] = {e["id"]: e["name"] for e in stt_label_map}
 
-            await share(share_url, None, retry=10)
+            result = await share(share_url, retry=10, blog_template=os.environ["HATENA_BLOG_TEMPLATE_MD"],
+                                 blog_template_kwargs={
+                                     "episode_number": self.podcast_meta["episode_number"],
+                                     "blog_title": blog_title,
+                                     "categories": categories,
+                                     "show_note": self.podcast_meta["description"],
+                                     "transcript": srt_as_blog_content(self.podcast_meta["transcript"], stt_label_map)
+                                 })
+            logger.info(result)
         except Exception as e:
             logger.exception(e)
             print(e)
