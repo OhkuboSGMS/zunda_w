@@ -221,7 +221,7 @@ class ConverterApp(ft.UserControl):
             expand=False,
             controls=[
                 ft.Row(
-                    [ft.Text(value="とにかくヨシ！Studio", style=ft.TextThemeStyle.HEADLINE_MEDIUM)],
+                    [ft.Text(value=os.environ.get("APP_TITLE", "Podcast Studio"), style=ft.TextThemeStyle.HEADLINE_MEDIUM)],
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
                 ft.Row(
@@ -534,7 +534,7 @@ class ConverterApp(ft.UserControl):
 async def main(page: ft.Page):
     presets = list_preset(os.environ["APP_EDIT_PRESET_DIR"], patterns=["*.yaml"])
     publish_preset = list_preset(os.environ["APP_PUBLISH_PRESET_DIR"], patterns=["*.yml"])
-    page.title = "とにかくヨシ！Studio"
+    page.title = os.environ.get("APP_TITLE","Podcast Studio")
     page.show_semantics_debugger = False
     page.window_visible = True
     page.window_width = 800
