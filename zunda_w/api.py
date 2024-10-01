@@ -15,12 +15,11 @@ from zunda_w import (
     cache,
     edit,
     silent,
-    transcribe_non_silence_srt,
-    transcribe_with_config,
     util,
 )
 from zunda_w.voicevox import download_voicevox, voice_vox
 from zunda_w.voicevox.voice_vox import VoiceVoxProfile
+from zunda_w.whisper_json import transcribe_non_silence_srt, transcribe_with_config
 
 
 class API:
@@ -72,7 +71,7 @@ class API:
             # launch process if not before launch.
             if voicevox_process is None:
                 voicevox_process = voice_vox.launch_voicevox_engine(
-                    download_voicevox.extract_engine(root_dir=self.engine_dir)
+                    download_voicevox.extract_engine(root_dir=self.engine_dir,update=False)
                 )
             if self.profile is None:
                 profile = VoiceVoxProfile()
