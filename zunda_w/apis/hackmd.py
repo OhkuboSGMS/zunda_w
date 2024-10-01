@@ -85,7 +85,8 @@ def create_memo(team_path: str, tag: Optional[str] = None, template: Optional[st
         raise ValueError("Please set environment variable, HACKMD_TOKEN")
 
     if title is None:
-        title = datetime.now().strftime("%Y-%m-%d")
+        # 区切りがスラッシュとしているのは生成時の出力フォルダの区切りと合わせるため
+        title = datetime.now().strftime("%Y/%m/%d")
 
     yaml_meta = f"---\ntitle: \"{title}\"\ntags: {tag}\n---\n"
     content = yaml_meta + template
