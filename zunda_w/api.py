@@ -19,7 +19,7 @@ from zunda_w import (
 )
 from zunda_w.voicevox import download_voicevox, voice_vox
 from zunda_w.voicevox.voice_vox import VoiceVoxProfile
-from zunda_w.whisper_json import transcribe_non_silence_srt, transcribe_with_config
+from zunda_w.transcribe import transcribe_non_silence_srt, transcribe_with_config
 
 
 class API:

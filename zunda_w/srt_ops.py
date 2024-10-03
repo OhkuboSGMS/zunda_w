@@ -186,7 +186,7 @@ def write_srt_with_meta(
         encoding="UTF-8",
 ) -> Path:
     """
-    既存のsrtファイルにmetaデータを一律で設定して再度書き込む
+    既存のsrtファイルにmetaデータ(proprietary)を一律で設定して再度書き込む
     :param srt_path:
     :param meta_data:
     :param output_path:

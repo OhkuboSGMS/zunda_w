@@ -14,7 +14,7 @@ from zunda_w.output import OutputDir
 from zunda_w.sentence.ginza_sentence import GinzaSentence
 from zunda_w.util import try_json_parse
 from zunda_w.voicevox.voice_vox import VoiceVoxProfile, VoiceVoxProfiles
-from zunda_w.whisper_json import WhisperProfile
+from zunda_w.transcribe import WhisperProfile
 
 
 @classopt(default_long=True)

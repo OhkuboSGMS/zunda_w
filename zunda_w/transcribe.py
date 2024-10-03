@@ -307,6 +307,16 @@ def transcribe_with_config(
     close_model: bool = False,
     meta_data: Any = "",
 ) -> List[str]:
+    """
+
+    :param wave_files:
+    :param profile:
+    :param root_dir:
+    :param output_dir:
+    :param close_model:
+    :param meta_data: 文字起こしした結果のsrtのproprietaryに設定するメタデータ
+    :return:
+    """
     output_dir = Path(root_dir).joinpath(output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
     model = "whisper_x"

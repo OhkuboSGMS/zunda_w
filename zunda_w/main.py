@@ -21,7 +21,7 @@ from zunda_w.util import (
     write_srt,
 )
 from zunda_w.voicevox import download_voicevox, voice_vox
-from zunda_w.whisper_json import (
+from zunda_w.transcribe import (
     transcribe_non_silence_srt,
     transcribe_with_config,
     whisper_context,
