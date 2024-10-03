@@ -48,7 +48,7 @@ async def share(url: str, retry: int = 3,
         blog_kwargs = {"podcast_url": url,
                        "title": blog_template_kwargs["blog_title"],
                        **blog_template_kwargs}
-        post_markdown: str = hatena.render(blog_template, blog_kwargs)
+        post_markdown: str = hatena.render_from_file(blog_template, blog_kwargs)
         status, url = hatena.post_blog(title, post_markdown, blog_kwargs["categories"], draft=draft)
         result["hatena_md"] = post_markdown
         result["hatena_url"] = url

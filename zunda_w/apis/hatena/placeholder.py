@@ -3,7 +3,16 @@ from pathlib import Path
 from jinja2 import Environment, meta, Template
 
 
-def render(template_file: str, blog_kwargs: dict) -> str:
+def render(template: str, blog_kwargs: dict) -> str:
+    """
+    テンプレートのmarkdownを読み込んで、jinja2のテンプレート機能を使って、プレースホルダを埋める
+    :param template: 適用するmarkdownテンプレート
+    :param blog_kwargs: placeholderに埋める値
+    :return:
+    """
+    template = Template(template)
+    return template.render(**blog_kwargs)
+def render_from_file(template_file: str, blog_kwargs: dict) -> str:
     """
     テンプレートのmarkdownを読み込んで、jinja2のテンプレート機能を使って、プレースホルダを埋める
     :param template_file: 適用するmarkdownテンプレートファイル
@@ -17,8 +26,7 @@ def render(template_file: str, blog_kwargs: dict) -> str:
         raise ValueError(
             f"Template variables are not matched with kwargs:追加でこの要素が必要です:{variables - set(blog_kwargs.keys())}")
     with open(template_file, "r", encoding="utf-8") as f:
-        template = Template(f.read())
-    return template.render(**blog_kwargs)
+        return render(f.read(), blog_kwargs)
 
 
 def get_template_variables(template_file: str) -> set:
@@ -42,7 +50,7 @@ def _sample():
     print(variables)
     assert set(
         kwargs.keys()) >= variables, f"Template variables are not matched with kwargs:{kwargs.keys()} は包含しない {variables}を"
-    result = render(template_file, blog_kwargs=kwargs)
+    result = render_from_file(template_file, blog_kwargs=kwargs)
     Path("test_blog_post.md").write_text(result, encoding="utf-8")
 
 
