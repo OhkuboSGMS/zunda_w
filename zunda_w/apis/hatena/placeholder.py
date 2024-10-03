@@ -3,15 +3,24 @@ from pathlib import Path
 from jinja2 import Environment, meta, Template
 
 
-def render(template: str, blog_kwargs: dict) -> str:
+def render(template: str, keywords: dict) -> str:
     """
     テンプレートのmarkdownを読み込んで、jinja2のテンプレート機能を使って、プレースホルダを埋める
     :param template: 適用するmarkdownテンプレート
-    :param blog_kwargs: placeholderに埋める値
+    :param keywords: placeholderに埋める値
     :return:
     """
+    template_ast = Environment().parse(template)
+    # テンプレート内のすべての変数名を取得
+    variables = meta.find_undeclared_variables(template_ast)
+    if not set(keywords.keys()).issuperset(variables):
+        raise ValueError(
+            f"Template variables are not matched with kwargs:追加でこの要素が必要です:{variables - set(keywords.keys())}")
+
     template = Template(template)
-    return template.render(**blog_kwargs)
+    return template.render(**keywords)
+
+
 def render_from_file(template_file: str, blog_kwargs: dict) -> str:
     """
     テンプレートのmarkdownを読み込んで、jinja2のテンプレート機能を使って、プレースホルダを埋める
