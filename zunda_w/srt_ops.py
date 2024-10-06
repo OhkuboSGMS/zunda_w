@@ -11,6 +11,7 @@ from pydub import AudioSegment
 from pydub.playback import play
 from srt import Subtitle
 
+from zunda_w.etc.placeholder import render
 from zunda_w.util import read_srt, read_json, write_srt
 from zunda_w.words import WordFilter
 
@@ -213,4 +214,26 @@ def srt_as_blog_content(content: str, label_map: Dict[str, str]) -> str:
     """
     # markdownに埋め込む場合[,]はエスケープする必要がある
     srt_list = list(map(lambda x: f"({label_map[x.proprietary]}):{x.content}<br>", srt.parse(content)))
+    return "\n".join([x for x in srt_list])
+
+
+def srt_as_interview_blog_content(content: str, template_file: str, label_map: Dict[str, str],
+                                  publish_map: Dict[str, Dict]) -> str:
+    """
+    文字起こしたsrtファイルを対談形式ブログ記事に用に体裁を修正する
+    :param content:
+    :param template_file:
+    :param label_map:
+    :param publish_map: 諸々の設定
+    :return:
+    """
+    template = Path(template_file).read_text(encoding="utf-8")
+    srt_list = list(map(lambda x: render(template,
+                                         {
+                                             "img_url": publish_map[x.proprietary]["avatar"],
+                                             "color": publish_map[x.proprietary]["color"],
+                                             "name": label_map[x.proprietary],
+                                             "text": x.content}
+                                         ) ,
+                        srt.parse(content)))
     return "\n".join([x for x in srt_list])
