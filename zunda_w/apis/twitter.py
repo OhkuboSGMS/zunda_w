@@ -3,7 +3,7 @@ import os
 import tweepy
 
 
-def tweet(title: str, url: str):
+def tweet(title: str, url: str, dry_run: bool = False):
     """
     :param title: podcast title
     :param url: share_url
@@ -24,6 +24,8 @@ Listen to \"{title}\"
 #ポッドキャスト #とにかくヨシ！
 {url}"""
 
+    if dry_run:
+        return template.format(title=title, url=url)
     res = client.create_tweet(text=template.format(title=title, url=url))
 
     return res

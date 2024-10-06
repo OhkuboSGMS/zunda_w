@@ -41,7 +41,7 @@ def embed_post(client: Client, text: Union[str, TextBuilder], title: str, descri
     return post_with_link_card
 
 
-def post_card(url: str):
+def post_card(url: str, dry_run: bool = False):
     if url is None:
         raise ValueError("url is None")
     client = Client()
@@ -60,5 +60,7 @@ def post_card(url: str):
             .tag("#ポッドキャスト", "ポッドキャスト") \
             .text(' ') \
             .tag("#とにかくヨシ！", "とにかくヨシ！")
+        if dry_run:
+            return text_builder.build_text()
         result = embed_post(client, text_builder, title, description, url, img_fp)
     return result

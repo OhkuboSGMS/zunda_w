@@ -7,6 +7,7 @@ from loguru import logger
 from zunda_w.apis import blue_sky, twitter
 from zunda_w.apis import hatena
 from zunda_w.apis.blue_sky import get_og_tags
+from zunda_w.etc.placeholder import render_from_file
 
 
 async def share(url: str, retry: int = 3,
@@ -30,10 +31,10 @@ async def share(url: str, retry: int = 3,
             continue
     if url:
         # blueskyで共有
-        result["blue_sky"] = blue_sky.post_card(url)
+        result["blue_sky"] = blue_sky.post_card(url, dry_run=draft)
         logger.info(f"Blue Skyに投稿しました:{result['blue_sky']}")
         # Xで共有
-        result["twitter"] = twitter.tweet(title, url)
+        result["twitter"] = twitter.tweet(title, url, dry_run=draft)
         logger.info(f"Twitterに投稿しました:{result['twitter']}")
 
         # はてなブログに投稿
@@ -48,7 +49,7 @@ async def share(url: str, retry: int = 3,
         blog_kwargs = {"podcast_url": url,
                        "title": blog_template_kwargs["blog_title"],
                        **blog_template_kwargs}
-        post_markdown: str = hatena.render_from_file(blog_template, blog_kwargs)
+        post_markdown: str = render_from_file(blog_template, blog_kwargs)
         status, url = hatena.post_blog(title, post_markdown, blog_kwargs["categories"], draft=draft)
         result["hatena_md"] = post_markdown
         result["hatena_url"] = url
