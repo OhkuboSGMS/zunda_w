@@ -16,6 +16,8 @@ def contains_alphabet(text) -> bool:
 
 # https://platform.openai.com/playground/p/KxUoo02lAi0vyTZwW4sIfB13?model=gpt-4
 
+MODEL_NAME = "gpt-4o"
+
 
 def word_to_kana(srt_file: str) -> str:
     """
@@ -26,7 +28,7 @@ def word_to_kana(srt_file: str) -> str:
     """
     logger.debug("Convert English word to カナ with ChatGPT API.")
     srts: Sequence[srt.Subtitle] = list(srt.parse(Path(srt_file).read_text()))
-    chat = ChatOpenAI(temperature=0, model_name="gpt-4")
+    chat = ChatOpenAI(temperature=0, model_name=MODEL_NAME)
     chat_prompt = ChatPromptTemplate.from_messages(
         [
             SystemMessage(

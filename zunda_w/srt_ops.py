@@ -4,14 +4,15 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from itertools import chain
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple, Dict
 
 import srt
 from pydub import AudioSegment
 from pydub.playback import play
 from srt import Subtitle
 
-from zunda_w.util import read_srt, read_json
+from zunda_w.etc.placeholder import render
+from zunda_w.util import read_srt, read_json, write_srt
 from zunda_w.words import WordFilter
 
 
@@ -23,8 +24,8 @@ class SpeakerUnit:
 
     def __post_init__(self):
         if self.audio_file_path and os.path.exists(self.audio_file_path):
-            if self.audio_file_path =='empty':
-                self.audio =None
+            if self.audio_file_path == 'empty':
+                self.audio = None
             else:
                 self.audio = AudioSegment.from_file(self.audio_file_path)
         else:
@@ -83,6 +84,9 @@ class SpeakerCompose:
             "n_length": str(self.n_length),
         }
 
+    def to_srt(self, output_path: str):
+        write_srt(output_path, self.srt)
+
     @cached_property
     def audio_duration(self) -> datetime.timedelta:
         """
@@ -110,7 +114,7 @@ class SpeakerCompose:
             for s, u in zip(srts, self.unit):
                 print(f'srt:{s.index} == compose:{u.subtitle.index}')
 
-                assert s.index == u.subtitle.index, f'{s.index}!={u.subtitle.index}'
+                assert s.index == u.subtitle.index, f'{s.index}:{s.content}!={u.subtitle.index}:{u.subtitle.content}'
             raise ValueError(f'Not Equal n line of srt = {len(srts)} and n units = {len(self.unit)}')
         for unit, s in zip(self.unit, srts):
             unit.subtitle = s
@@ -183,7 +187,7 @@ def write_srt_with_meta(
         encoding="UTF-8",
 ) -> Path:
     """
-    既存のsrtファイルにmetaデータを一律で設定して再度書き込む
+    既存のsrtファイルにmetaデータ(proprietary)を一律で設定して再度書き込む
     :param srt_path:
     :param meta_data:
     :param output_path:
@@ -197,3 +201,39 @@ def write_srt_with_meta(
 
     output_path.write_text(srt.compose(subtitles), encoding=encoding)
     return output_path
+
+
+# 装飾
+def srt_as_blog_content(content: str, label_map: Dict[str, str]) -> str:
+    """
+    srt形式のファイルをブログ記事に用に体裁を修正する
+    時系列表示をけす、 proprietaryをラベルに変換
+    :param content: srt形式の文字列(ファイルパスではない)
+    :param label_map: proprietaryをラベルに変換するための辞書
+    :return:
+    """
+    # markdownに埋め込む場合[,]はエスケープする必要がある
+    srt_list = list(map(lambda x: f"({label_map[x.proprietary]}):{x.content}<br>", srt.parse(content)))
+    return "\n".join([x for x in srt_list])
+
+
+def srt_as_interview_blog_content(content: str, template_file: str, label_map: Dict[str, str],
+                                  publish_map: Dict[str, Dict]) -> str:
+    """
+    文字起こしたsrtファイルを対談形式ブログ記事に用に体裁を修正する
+    :param content:
+    :param template_file:
+    :param label_map:
+    :param publish_map: 諸々の設定
+    :return:
+    """
+    template = Path(template_file).read_text(encoding="utf-8")
+    srt_list = list(map(lambda x: render(template,
+                                         {
+                                             "img_url": publish_map[x.proprietary]["avatar"],
+                                             "color": publish_map[x.proprietary]["color"],
+                                             "name": label_map[x.proprietary],
+                                             "text": x.content}
+                                         ) ,
+                        srt.parse(content)))
+    return "\n".join([x for x in srt_list])

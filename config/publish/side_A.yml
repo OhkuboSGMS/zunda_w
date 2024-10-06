@@ -1,0 +1,22 @@
+mode: s2t2s
+publish:
+  thumbnail: 'config/yoshi_zunda.png'
+
+note:
+  type: "A"
+  tag: 'side-A'
+  template: |-
+    # A
+    # B
+    # C
+
+speak:
+  labels:
+    - id: "3"
+      name: "まっと"
+      avatar: 'https://storage.cloud.google.com/podcast_publish_storage/blog_avatar/matt.jpg'
+      color: "orange"
+    - id: "2"
+      name: "大久保"
+      avatar: 'https://storage.cloud.google.com/podcast_publish_storage/blog_avatar/okubo.jpg'
+      color: "green"

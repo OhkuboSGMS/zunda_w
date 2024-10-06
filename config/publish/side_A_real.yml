@@ -1,0 +1,23 @@
+mode: editor
+create_show_note: true
+components:
+  - audio_placeholder:
+      index: 0
+      var: 0
+  - audio_placeholder:
+      index: 0
+      var: 1
+  - audio:
+      path: 'J:\PodCast\sound_resource\side-B\ending.wav'
+
+note:
+  type: "A"
+  tag: 'side-A'
+  template: |-
+    # A
+    # B
+    # C
+
+
+publish:
+  explicit: true

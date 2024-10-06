@@ -1,7 +1,9 @@
 _engines = {
     "Windows": [
-        "https://github.com/VOICEVOX/voicevox_engine/releases/download/0.14.4/voicevox_engine-windows-nvidia-0.14.4.7z.001"
+        "https://github.com/VOICEVOX/voicevox/releases/download/0.20.0/voicevox-windows-directml-0.20.0.zip"
+
     ],
+# "https://github.com/VOICEVOX/voicevox_engine/releases/download/0.14.4/voicevox_engine-windows-nvidia-0.14.4.7z.001"
     # 'Darwin': ['https://github.com/VOICEVOX/voicevox_engine/releases/download/0.13.1/macos-x64.7z.001',
     #            'https://github.com/VOICEVOX/voicevox_engine/releases/download/0.13.1/macos-x64.7z.002'],
     # 'Linux': ['https://github.com/VOICEVOX/voicevox_engine/releases/download/0.13.1/linux-nvidia.7z.001',

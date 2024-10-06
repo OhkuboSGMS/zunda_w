@@ -14,7 +14,7 @@ from zunda_w.output import OutputDir
 from zunda_w.sentence.ginza_sentence import GinzaSentence
 from zunda_w.util import try_json_parse
 from zunda_w.voicevox.voice_vox import VoiceVoxProfile, VoiceVoxProfiles
-from zunda_w.whisper_json import WhisperProfile
+from zunda_w.transcribe import WhisperProfile
 
 
 @classopt(default_long=True)
@@ -37,9 +37,9 @@ class Options:
     default_v_profile: VoiceVoxProfile = VoiceVoxProfile()
     v_profile_json: str = "v_profile.json"
     speaker_json: str = "speakers.json"
-    word_filter: str = "filter_word.txt"
+    word_filter: str = "config/filter_word.txt"
     prompt: str = "prompt.txt"
-    user_dict: str = "user_dict.csv"
+    user_dict: str = "config/user_dict.csv"
     no_detect_silence: bool = True
     cache_root_dir: str = os.curdir
     data_cache_dir: str = ".cache"

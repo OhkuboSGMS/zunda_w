@@ -4,10 +4,13 @@ from loguru import logger
 
 from zunda_w.llm.convert_word_to_kana import word_to_kana
 from zunda_w.postprocess.dummy import dummy
+from zunda_w.sentence.sentiment import add_emotion_tag
 
-_cmd_dict: Dict[str,Callable[[str], str]] = {
+_cmd_dict: Dict[str, Callable[[str], str]] = {
     "word2kana": word_to_kana,
-    "dummy": dummy
+    "dummy": dummy,
+    "emotion_analysis": add_emotion_tag,
+    # sentiment_analysis
 }
 
 

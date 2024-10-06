@@ -19,3 +19,6 @@ class OutputDir:
 
     def __call__(self, file_name: str) -> Path:
         return self.directory.joinpath(file_name)
+
+    def __str__(self):
+        return str(self.directory)

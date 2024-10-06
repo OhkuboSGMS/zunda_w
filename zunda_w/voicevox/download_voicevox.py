@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import os
 import platform
+import shutil
 from pathlib import Path
 from typing import List, Optional, Union
 
 import py7zr
 from loguru import logger
-
+from zipfile import ZipFile
 from zunda_w.download import cache_download_from_github
 from zunda_w.voicevox.voicevox_download_link import _engines, _engines_sha256
 
@@ -46,10 +47,10 @@ def _extract_multipart(archives: List[Union[str, Path]], directory: str):
 
 
 def extract_engine(
-    root_dir: str = ".engine",
-    directory: str = "voicevox",
-    dry_run: bool = False,
-    update: bool = False,
+        root_dir: str = ".engine",
+        directory: str = "voicevox",
+        dry_run: bool = False,
+        update: bool = False,
 ) -> Optional[str]:
     """
     voicevox-engineをダウンロード.ファイルに展開
@@ -73,10 +74,21 @@ def extract_engine(
     else:
         if dry_run:
             return None
+        # 以前のダウンロードしたフォルダがある場合は削除
+        if exe_dir.exists():
+            shutil.rmtree(exe_dir)
         logger.debug(f"Download voicevox-engine from github　-> {root_dir}")
         archives = list(
             _download_engine(_engines[system], _engines_sha256[system], str(root_dir))
         )
-        exe_dir = _extract_multipart(archives, exe_dir)
-        exe_path = list(Path(exe_dir).glob("**/run.exe"))
-        return str(exe_path[0])
+        # archives extentions is 7z.001, 7z.002
+        if len(archives) > 1 and str(archives[0]).endswith(".001"):
+            exe_dir = _extract_multipart(archives, exe_dir)
+            exe_path = list(Path(exe_dir).glob("**/run.exe"))
+            return str(exe_path[0])
+        elif len(archives) == 1 and archives[0].suffix == ".zip":
+            # extract zip with zipfile
+            shutil.unpack_archive(archives[0], exe_dir)
+            return str(list(Path(exe_dir).glob("**/run.exe"))[0])
+        else:
+            raise NotImplementedError(f"Can't extract {archives}")

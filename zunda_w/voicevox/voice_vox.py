@@ -21,6 +21,7 @@ from typing import (
     Tuple,
     TypedDict,
     Union,
+    Any,
 )
 
 import requests
@@ -31,8 +32,9 @@ from pydub import AudioSegment
 
 from zunda_w.cache import cached_file
 from zunda_w.hash import concat_hash, dict_hash
+from zunda_w.sentence.sentiment import EMO_TAG
 from zunda_w.voicevox.voicevox_user_dict import parse_user_dict_from_csv
-from zunda_w.postprocess.srt import tag
+from zunda_w.postprocess.srt import tag, tag_pattern
 
 # TODO ポート番号の仕様チェック
 ROOT_URL = "http://localhost:50021"
@@ -47,6 +49,7 @@ class VoiceVoxProfile(TypedDict, total=False):
     postPhonemeLength: float
     outputSamplingRate: float
     outputStereo: float
+    emotionStyleMap: Dict[str, Any]
 
 
 VoiceVoxProfiles = List[VoiceVoxProfile]
@@ -111,6 +114,7 @@ def synthesis(
         use_cache=True,
 ):
     """
+    テキストから音声を作成する
     voicevoxにて合成音声を出力
     :param text:
     :param output_dir:
@@ -121,12 +125,19 @@ def synthesis(
     :param use_cache: False,強制的に上書きする
     :return:
     """
+    tags = tag.extract_tag_key(text)
     # check text is tag
-    if tag.contain_tag(text, '[next]'):
+    if tag.contain_tag_in_tag_list(tags, tag_pattern.SPAN_TAG):
         empty_audio_file = 'empty'
         return empty_audio_file
+
+    if tag_pattern.has_tag(tags, EMO_TAG):
+        emo_tag = tag_pattern.get_tag(tags, EMO_TAG)
+        # 感情タグをvoicevoxのstyleに割り当て
+        speaker = query["emotionStyleMap"][str(speaker)].get(emo_tag)
+    voice_line = tag.extract_text(text)
     # audio_query
-    query_payload = {"text": text, "speaker": speaker}
+    query_payload = {"text": voice_line, "speaker": speaker}
     for query_i in range(max_retry):
         r = requests.post(
             f"{ROOT_URL}/audio_query", params=query_payload, timeout=(10.0, 300.0)

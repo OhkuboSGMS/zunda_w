@@ -1,0 +1,35 @@
+mode: editor
+create_show_note: true
+components:
+  - audio:
+      path: 'J:\PycharmProjects\zunda_w\preset_sound\001_ずんだもん（ノーマル）_とにかくヨシ！B面！.wav'
+#      path: 'J:\PodCast\sound_resource\side-B\intro.wav'
+  - audio_placeholder:
+      index: 0
+      var: 0
+  - audio_placeholder:
+      index: 0
+      var: 1
+  - audio:
+      path: 'J:\PodCast\sound_resource\side-B\ending.wav'
+
+note:
+  type: "B"
+  tag: 'side-B'
+  template: |-
+    # A
+    # B
+    # C
+
+speak:
+  labels:
+    - id: "3"
+      name: "まっと"
+      avatar: 'https://storage.cloud.google.com/podcast_publish_storage/blog_avatar/matt.jpg'
+      color: "orange"
+    - id: "2"
+      name: "大久保"
+      avatar: 'https://storage.cloud.google.com/podcast_publish_storage/blog_avatar/okubo.jpg'
+      color: "green"
+publish:
+  explicit: true
