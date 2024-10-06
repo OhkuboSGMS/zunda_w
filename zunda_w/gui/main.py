@@ -65,13 +65,12 @@ def convert(files, preset: str, publish_preset: str, output_dir: str):
         conf.preset = preset
         conf = OmegaConf.to_container(conf, structured_config_mode=SCMode.INSTANTIATE)
         _audio = edit_from_yml(files, publish_conf)
-        # _audio = effects.normalize(_audio,0.3)
         output_audio = conf.tool_output("mix.wav")
         _audio.export(output_audio, format="wav")
         normalize.ffmpeg_normalize(output_audio, output_audio)
         conf.audio_files = [output_audio]
         print(output_audio)
-        from zunda_w.whisper_json import (
+        from zunda_w.transcribe import (
             transcribe_with_config,
             whisper_context,
         )
@@ -221,7 +220,8 @@ class ConverterApp(ft.UserControl):
             expand=False,
             controls=[
                 ft.Row(
-                    [ft.Text(value=os.environ.get("APP_TITLE", "Podcast Studio"), style=ft.TextThemeStyle.HEADLINE_MEDIUM)],
+                    [ft.Text(value=os.environ.get("APP_TITLE", "Podcast Studio"),
+                             style=ft.TextThemeStyle.HEADLINE_MEDIUM)],
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
                 ft.Row(
@@ -551,7 +551,7 @@ class ConverterApp(ft.UserControl):
 async def main(page: ft.Page):
     presets = list_preset(os.environ["APP_EDIT_PRESET_DIR"], patterns=["*.yaml"])
     publish_preset = list_preset(os.environ["APP_PUBLISH_PRESET_DIR"], patterns=["*.yml"])
-    page.title = os.environ.get("APP_TITLE","Podcast Studio")
+    page.title = os.environ.get("APP_TITLE", "Podcast Studio")
     page.show_semantics_debugger = False
     page.window_visible = True
     page.window_width = 800
