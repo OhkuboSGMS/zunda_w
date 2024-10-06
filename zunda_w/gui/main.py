@@ -1,7 +1,5 @@
 import asyncio
-import importlib
 import os
-import time
 from pathlib import Path
 from typing import Final, List, Dict
 
@@ -18,12 +16,13 @@ from zunda_w.apis import hackmd, share
 from zunda_w.arg import Options
 from zunda_w.constants import list_preset
 from zunda_w.edit import edit_from_yml
+from zunda_w.etc.timer import Timer
 from zunda_w.llm import create_podcast_title, shownote, create_blog_categories
 from zunda_w.postprocess import normalize
-from zunda_w.srt_ops import sort_srt_files, srt_as_blog_content
+from zunda_w.srt_ops import sort_srt_files, srt_as_blog_content, srt_as_interview_blog_content
 from zunda_w.util import file_uri, read_srt
 from zunda_w.words import WordFilter
-from zunda_w.etc.timer import Timer
+
 
 def read_preset(preset_name: str, preset_dir: str):
     publish_conf_path = os.path.join(preset_dir, f"{preset_name}.yml")
@@ -74,7 +73,7 @@ def convert(files, preset: str, publish_preset: str, output_dir: str):
             transcribe_with_config,
             whisper_context,
         )
-        with whisper_context(),Timer() as t:
+        with whisper_context(), Timer() as t:
             stt_files = []
             for idx, (original_audio, speaker_id) in enumerate(zip(files, conf.speakers)):
                 audio_hash = file_hash(output_audio)
@@ -94,6 +93,10 @@ def convert(files, preset: str, publish_preset: str, output_dir: str):
         logger.info(f"Transcribe Time:{t.elapsed:.2f}s")
         output_file = output_audio
         return output_file, None
+
+
+def publish():
+    pass  # TODO 共有の処理
 
 
 class AudioFile(ft.UserControl):
@@ -432,42 +435,64 @@ class ConverterApp(ft.UserControl):
         await self.update_async()
 
     async def publish_to_podcast(self, e):
+        """
+        ポッドキャストを配信&SNS,ブログに投稿する
+        :param e:
+        :return:
+        """
         if self.output_file is None:
             print("Not Found Publish File")
             return
+
+        is_draft = os.getenv("APP_PUBLISH_DRAFT", "False").lower() == "true"
+        skip_publish = os.getenv("APP_SKIP_PUBLISH_PODCAST", "False").lower() == "true"
+        logger.debug(f"Publish is Draft?: {is_draft}")
         publish_conf = read_preset(self.publish_select.value, os.environ["APP_PUBLISH_PRESET_DIR"])
 
         thumbnail = publish_conf["publish"]["thumbnail"] if "thumbnail" in publish_conf.get("publish", {}) else None
         try:
-            # importlib.reload(sfp_uploader)
-            logger.info("Launch Publish Browser")
-            share_url = await sfp_uploader.publish(
-                os.environ["PODCAST_URL"],
-                os.environ["PODCAST_EMAIL"],
-                os.environ["PODCAST_PASSWORD"],
-                os.path.abspath(self.output_file),
-                Path(self.podcast_meta["title_path"]).read_text(),
-                markdown.markdown(text=Path(self.podcast_meta["memo_path"]).read_text(), extensions=["mdx_linkify"]),
-                is_html=True,
-                timeout=720 * 1000,  # 出すまでに時間がかかるので、長めに取っておく。720秒
-                thumbnail=thumbnail,
-                is_publish=True,
+            if not skip_publish:
+                logger.info("Launch Publish Browser")
+                share_url = await sfp_uploader.publish(
+                    os.environ["PODCAST_URL"],
+                    os.environ["PODCAST_EMAIL"],
+                    os.environ["PODCAST_PASSWORD"],
+                    os.path.abspath(self.output_file),
+                    Path(self.podcast_meta["title_path"]).read_text(),
+                    markdown.markdown(text=Path(self.podcast_meta["memo_path"]).read_text(), extensions=["mdx_linkify"]),
+                    is_html=True,
+                    timeout=720 * 1000,  # 出すまでに時間がかかるので、長めに取っておく。720秒
+                    thumbnail=thumbnail,
+                    is_publish=not is_draft,
 
-            )
+                )
+            else:
+                logger.debug("APP_SKIP_PUBLISH_PODCAST is True, Skip Publish")
+                share_url = "https://open.spotify.com/episode/5iGKnrVneoKaAHWtXIglW6"
             self.podcast_meta["share_url"] = share_url
             categories = create_blog_categories.create(self.podcast_meta["transcript"])
             blog_title = f"ポッドキャスト-とにかくヨシ!-第{self.podcast_meta['episode_number']:04d}回 {self.podcast_meta['title']} アーカイブ"
             stt_label_map: List[Dict] = publish_conf["speak"]["labels"]
             label_name_map: Dict[str, str] = {e["id"]: e["name"] for e in stt_label_map}
-            avatar_map: Dict[str, str] = {e["id"]: e["avatar"] for e in stt_label_map}
-            result = await share(share_url, retry=10, blog_template=os.environ["HATENA_BLOG_TEMPLATE_MD"],
+
+            publish_map: Dict[str, Dict] = {e["id"]: e for e in stt_label_map}
+            template_file = "zunda_w/apis/hatena/hatena_comment_with_avatar.html"
+            blog_transcription = srt_as_interview_blog_content(self.podcast_meta["transcript"],
+                                                               template_file,
+                                                               label_name_map,
+                                                               publish_map)
+            # srt_as_blog_content(self.podcast_meta["transcript"], label_name_map)
+            result = await share(share_url, retry=10,
+                                 blog_template=os.environ["HATENA_BLOG_TEMPLATE_MD"],
                                  blog_template_kwargs={
                                      "episode_number": self.podcast_meta["episode_number"],
                                      "blog_title": blog_title,
                                      "categories": categories,
                                      "show_note": self.podcast_meta["description"],
-                                     "transcript": srt_as_blog_content(self.podcast_meta["transcript"], label_name_map)
-                                 })
+                                     "transcript": blog_transcription
+                                 },
+                                 draft=is_draft)
+
             logger.info(result)
         except Exception as e:
             logger.exception(e)
