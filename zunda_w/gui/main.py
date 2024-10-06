@@ -23,7 +23,7 @@ from zunda_w.postprocess import normalize
 from zunda_w.srt_ops import sort_srt_files, srt_as_blog_content
 from zunda_w.util import file_uri, read_srt
 from zunda_w.words import WordFilter
-
+from zunda_w.etc.timer import Timer
 
 def read_preset(preset_name: str, preset_dir: str):
     publish_conf_path = os.path.join(preset_dir, f"{preset_name}.yml")
@@ -74,24 +74,24 @@ def convert(files, preset: str, publish_preset: str, output_dir: str):
             transcribe_with_config,
             whisper_context,
         )
-        from zunda_w.llm import shownote
-        _s = time.perf_counter()
-        with whisper_context():
-            audio_hash = file_hash(output_audio)
-            stt_file = list(
-                transcribe_with_config(
-                    conf.audio_files,
-                    conf.whisper_profile,
-                    root_dir=os.path.join(conf.data_dir, audio_hash),
-                    meta_data="",
-                ))
-            print(stt_file)
-            compose = sort_srt_files(stt_file, word_filter=WordFilter(conf.word_filter))
-            output_srt = conf.tool_output("stt.srt")
-            compose.to_srt(output_srt)
+        with whisper_context(),Timer() as t:
+            stt_files = []
+            for idx, (original_audio, speaker_id) in enumerate(zip(files, conf.speakers)):
+                audio_hash = file_hash(output_audio)
+                stt_file = list(
+                    transcribe_with_config(
+                        [original_audio],
+                        conf.whisper_profile,
+                        root_dir=os.path.join(conf.data_dir, audio_hash),
+                        meta_data=str(speaker_id),
+                    ))
+                print(stt_file)
+                stt_files.extend(stt_file)
+
+            compose = sort_srt_files(stt_files, word_filter=WordFilter(conf.word_filter))
+            compose.to_srt(conf.tool_output("stt.srt"))
             print(file_uri(str(conf.tool_output)))
-        _e = time.perf_counter()
-        logger.info(f"Transcribe Time:{_e - _s:.2f}s")
+        logger.info(f"Transcribe Time:{t.elapsed:.2f}s")
         output_file = output_audio
         return output_file, None
 
@@ -456,17 +456,17 @@ class ConverterApp(ft.UserControl):
             )
             self.podcast_meta["share_url"] = share_url
             categories = create_blog_categories.create(self.podcast_meta["transcript"])
-            blog_title = f"ポッドキャスト-とにかくヨシ!-第{self.podcast_meta['episode_number']:04d}回 {self.podcast_meta['title']}　アーカイブ"
+            blog_title = f"ポッドキャスト-とにかくヨシ!-第{self.podcast_meta['episode_number']:04d}回 {self.podcast_meta['title']} アーカイブ"
             stt_label_map: List[Dict] = publish_conf["speak"]["labels"]
-            stt_label_map: Dict[str, str] = {e["id"]: e["name"] for e in stt_label_map}
-
+            label_name_map: Dict[str, str] = {e["id"]: e["name"] for e in stt_label_map}
+            avatar_map: Dict[str, str] = {e["id"]: e["avatar"] for e in stt_label_map}
             result = await share(share_url, retry=10, blog_template=os.environ["HATENA_BLOG_TEMPLATE_MD"],
                                  blog_template_kwargs={
                                      "episode_number": self.podcast_meta["episode_number"],
                                      "blog_title": blog_title,
                                      "categories": categories,
                                      "show_note": self.podcast_meta["description"],
-                                     "transcript": srt_as_blog_content(self.podcast_meta["transcript"], stt_label_map)
+                                     "transcript": srt_as_blog_content(self.podcast_meta["transcript"], label_name_map)
                                  })
             logger.info(result)
         except Exception as e:
