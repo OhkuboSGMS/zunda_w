@@ -1,6 +1,28 @@
 [
   {
-    "speedScale": 1.25,
-    "intonationScale": 1.3
+    "speedScale": 1.10,
+    "intonationScale": 1.3,
+    "emotionStyleMap": {
+      "2": {
+        "joy": 0,
+        "sad": 37,
+        "anticipate": 2,
+        "surprise": 2,
+        "anger": 6,
+        "fear": 37,
+        "disgust": 6,
+        "trust": 0
+      },
+      "3": {
+        "joy": 3,
+        "sad": 22,
+        "anticipate": 3,
+        "surprise": 7,
+        "anger": 7,
+        "fear": 38,
+        "disgust": 38,
+        "trust": 1
+      }
+    }
   }
 ]
