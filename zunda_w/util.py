@@ -1,9 +1,12 @@
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Sequence, Union, Optional
 
 import srt
+import yaml
+from loguru import logger
 
 
 def file_hash(path: Union[str, Path], hash_fun=hashlib.md5) -> str:
@@ -84,3 +87,12 @@ def file_uri(path: str) -> str:
 
 def read_json(json_file: Union[str, Path]) -> dict:
     return json.loads(Path(json_file).read_text())
+
+
+def read_preset(preset_name: str, preset_dir: str):
+    publish_conf_path = os.path.join(preset_dir, f"{preset_name}.yml")
+    if not os.path.exists(publish_conf_path):
+        logger.warning(f"Not Found Publish Preset: {publish_conf_path}")
+        return None
+
+    return yaml.load(open(publish_conf_path), Loader=yaml.SafeLoader)

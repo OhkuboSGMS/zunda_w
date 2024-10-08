@@ -6,7 +6,6 @@ from typing import Final, List, Dict
 import flet as ft
 import markdown
 import sfp_uploader
-import yaml
 from flet_core import margin
 from loguru import logger
 from omegaconf import OmegaConf, SCMode
@@ -19,18 +18,9 @@ from zunda_w.edit import edit_from_yml
 from zunda_w.etc.timer import Timer
 from zunda_w.llm import create_podcast_title, shownote, create_blog_categories
 from zunda_w.postprocess import normalize
-from zunda_w.srt_ops import sort_srt_files, srt_as_blog_content, srt_as_interview_blog_content
-from zunda_w.util import file_uri, read_srt
+from zunda_w.srt_ops import sort_srt_files, srt_as_interview_blog_content
+from zunda_w.util import file_uri, read_srt, read_preset
 from zunda_w.words import WordFilter
-
-
-def read_preset(preset_name: str, preset_dir: str):
-    publish_conf_path = os.path.join(preset_dir, f"{preset_name}.yml")
-    if not os.path.exists(publish_conf_path):
-        logger.warning(f"Not Found Publish Preset: {publish_conf_path}")
-        return None
-
-    return yaml.load(open(publish_conf_path), Loader=yaml.SafeLoader)
 
 
 def create_output_dir_if_not_exists(root_dir: str, name: str) -> str:
