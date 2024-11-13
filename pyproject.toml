@@ -65,6 +65,7 @@ tweepy = "^4.14.0"
 markdown = "^3.6"
 mdx-linkify = "^2.1"
 anthropic = "^0.25.1"
+rs-downloader = {git = "https://github.com/OhkuboSGMS/rs-downloader"}
 
 [build-system]
 requires = ["poetry-core"]
