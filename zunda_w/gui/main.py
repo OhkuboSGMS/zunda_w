@@ -1,7 +1,7 @@
 import asyncio
 import os
 from pathlib import Path
-from typing import Final, List, Dict
+from typing import Final, List, Dict, Optional
 
 import flet as ft
 import markdown
@@ -10,6 +10,7 @@ from flet_core import margin
 from loguru import logger
 from omegaconf import OmegaConf, SCMode
 
+import rs_downloader
 from zunda_w import file_hash
 from zunda_w.apis import hackmd, share
 from zunda_w.arg import Options
@@ -23,6 +24,13 @@ from zunda_w.util import file_uri, read_srt, read_preset
 from zunda_w.words import WordFilter
 
 
+async def show_snackbar(msg, e):
+    snackbar = ft.SnackBar(ft.Text(msg))
+    e.control.page.overlay.append(snackbar)
+    snackbar.open = True
+    await e.control.page.update_async()
+
+
 def create_output_dir_if_not_exists(root_dir: str, name: str) -> str:
     output_path = os.path.join(root_dir, name)
     if not os.path.exists(output_path):
@@ -30,8 +38,16 @@ def create_output_dir_if_not_exists(root_dir: str, name: str) -> str:
     return output_path
 
 
-def convert(files, preset: str, publish_preset: str, output_dir: str):
-    """ポッドキャストの音声を変換(タスク)"""
+def convert(files, preset: str, publish_preset: str, output_dir: str, root_dir: Optional[str] = None):
+    """
+    ポッドキャストの音声を変換(タスク)
+    :param files:
+    :param preset:
+    :param publish_preset:
+    :param output_dir: 出力フォルダ名
+    :param root_dir:  出力先のディレクトリ
+    :return:
+    """
     from zunda_w import __main__
     files = list(filter(lambda x: x is not None, files))
     conf = OmegaConf.structured(Options(audio_files=files, preset=preset))
@@ -43,6 +59,9 @@ def convert(files, preset: str, publish_preset: str, output_dir: str):
         return None, "Publish Preset Not Found"
     if output_dir:
         conf.target_dir = output_dir
+
+    if root_dir:
+        conf.tool_output = root_dir
 
     if publish_conf.get("mode", "s2t2s") == "s2t2s":
         output_file = __main__._convert(conf)
@@ -172,7 +191,7 @@ class ConverterApp(ft.UserControl):
         super().__init__()
         self.PRESETS: Final[List[str]] = default_preset
         self.PUBLISH_PRESETS: Final[List[str]] = publish_presets
-        self.OUTPUT_DIR: Final[str] = default_output_dir
+        self.OUTPUT_ROOT_DIR: Final[str] = os.getenv("APP_OUTPUT_ROOT_DIR", default_output_dir)
         self.podcast_meta = {}
 
     def build(self):
@@ -252,9 +271,11 @@ class ConverterApp(ft.UserControl):
                 ),
                 ft.Row(
                     controls=[
+                        ft.ElevatedButton('Download RS',
+                                          on_click=self.download_from_rs),
                         ft.FloatingActionButton(
                             icon=ft.icons.ADD, on_click=self.add_file_picker
-                        ),
+                        )
                     ],
                     alignment=ft.MainAxisAlignment.END
                 ),
@@ -345,6 +366,10 @@ class ConverterApp(ft.UserControl):
         :return:
         """
         memo_id = self.note_select.value
+        if not memo_id:
+            logger.warning("No Memo Selected")
+            await show_snackbar("No Memo Selected", e)
+            return
         publish_conf = read_preset(self.publish_select.value, os.environ["APP_PUBLISH_PRESET_DIR"])
         if not publish_conf or not publish_conf["note"]["tag"]:
             raise ValueError("No tag in publish preset")
@@ -353,7 +378,7 @@ class ConverterApp(ft.UserControl):
         # Publish Config と合わせて出力フォルダを作成
         dir_title = f'{dir_title}_{publish_conf["note"]["type"]}'
         # 生成したメタデータを保存、uiに反映
-        output_dir_path: str = create_output_dir_if_not_exists(self.OUTPUT_DIR, dir_title)
+        output_dir_path: str = create_output_dir_if_not_exists(self.OUTPUT_ROOT_DIR, dir_title)
         logger.debug(f"Create Output Dir: {Path(output_dir_path).absolute().as_uri()}")
         memo_path = f"{output_dir_path}/memo.md"
         Path(memo_path).write_text(content)
@@ -365,6 +390,19 @@ class ConverterApp(ft.UserControl):
         self.hack_md_memo_text.value = f"HackMD Memo:{dir_title}"
         self.output_dir.value = dir_title
         await self.update_async()
+
+    async def download_from_rs(self, e):
+        try:
+            url = os.environ.get("APP_RS_URL", None)
+            download_dir = os.environ.get("APP_RS_DOWNLOAD_DIR", None)
+            memo_path = os.environ.get("APP_RS_DOWNLOAD_MEMO", None)
+            if not download_dir or not memo_path or not url:
+                raise ValueError(
+                    "Download Dir or Memo Path is not set. Please set APP_RS_URL, APP_RS_DOWNLOAD_DIR, APP_RS_DOWNLOAD_MEMO")
+
+            await rs_downloader.download(url, download_dir, memo_path)
+        except Exception as e:
+            logger.exception(e)
 
     async def publish_setting(self, e):
         """
@@ -449,7 +487,8 @@ class ConverterApp(ft.UserControl):
                     os.environ["PODCAST_PASSWORD"],
                     os.path.abspath(self.output_file),
                     Path(self.podcast_meta["title_path"]).read_text(),
-                    markdown.markdown(text=Path(self.podcast_meta["memo_path"]).read_text(), extensions=["mdx_linkify"]),
+                    markdown.markdown(text=Path(self.podcast_meta["memo_path"]).read_text(),
+                                      extensions=["mdx_linkify"]),
                     is_html=True,
                     timeout=720 * 1000,  # 出すまでに時間がかかるので、長めに取っておく。720秒
                     thumbnail=thumbnail,
@@ -484,6 +523,7 @@ class ConverterApp(ft.UserControl):
                                  draft=is_draft)
 
             logger.info(result)
+            logger.success("Publish Success")
         except Exception as e:
             logger.exception(e)
             print(e)
@@ -507,7 +547,7 @@ class ConverterApp(ft.UserControl):
         """ポッドキャストの音声を変換(タスク)"""
         output_dir = Path(self.output_dir.value)
         try:
-            output_file, error = convert(files, preset, publish_preset, output_dir)
+            output_file, error = convert(files, preset, publish_preset, str(output_dir), self.OUTPUT_ROOT_DIR)
             if error:
                 await self.update_progress(False)
                 return

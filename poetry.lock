@@ -5035,7 +5035,7 @@ jupyter = ["ipywidgets (>=7.5.1,<9)"]
 
 [[package]]
 name = "rs-downloader"
-version = "0.1.0"
+version = "0.1.1"
 description = "download audio from rs"
 optional = false
 python-versions = ">=3.8"
@@ -5050,7 +5050,7 @@ playwright = ">=1.47.0"
 type = "git"
 url = "https://github.com/OhkuboSGMS/rs-downloader"
 reference = "HEAD"
-resolved_reference = "bad0d626aa8062c7c6e2ed3dcd94eb37b668dab0"
+resolved_reference = "8a40fa0d77cc3b73b58cf5417c83d6142fcc0827"
 
 [[package]]
 name = "ruamel-yaml"
