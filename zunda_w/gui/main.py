@@ -16,6 +16,7 @@ from zunda_w.apis import hackmd, share
 from zunda_w.arg import Options
 from zunda_w.constants import list_preset
 from zunda_w.edit import edit_from_yml
+from zunda_w.etc.fille import increment_file
 from zunda_w.etc.timer import Timer
 from zunda_w.llm import create_podcast_title, shownote, create_blog_categories
 from zunda_w.postprocess import normalize
@@ -61,7 +62,7 @@ def convert(files, preset: str, publish_preset: str, output_dir: str, root_dir: 
         conf.target_dir = output_dir
 
     if root_dir:
-        conf.tool_output = root_dir
+        conf.output_dir = root_dir
 
     if publish_conf.get("mode", "s2t2s") == "s2t2s":
         output_file = __main__._convert(conf)
@@ -421,17 +422,20 @@ class ConverterApp(ft.UserControl):
             raise ValueError("No Podcast Meta")
         if "memo_path" not in self.podcast_meta:
             raise ValueError("先にメモを取得してください")
-        if "title" in self.podcast_meta:
-            logger.debug("既に生成済みのタイトルがあるため、再生成しません")
-            return
         if not self.output_dir.value:
             raise ValueError("Run Construct Title First!")
 
         memo_md: str = Path(self.podcast_meta["memo_path"]).read_text()
-        conf = Options(target_dir=self.output_dir.value)
-        publish_index = int(Path(os.environ["APP_PUBLISH_PRESET_DIR"]).joinpath("n.txt").read_text()) + 1
-        title = f"{publish_index}{publish_conf['note']['type']}.{create_podcast_title.summarize_title(memo_md)}"
-        conf.tool_output("title.txt").write_text(title)
+        conf = Options(target_dir=self.output_dir.value, output_dir=self.OUTPUT_ROOT_DIR)
+        n_txt_file = Path(os.environ["APP_PUBLISH_PRESET_DIR"]).joinpath("n.txt")
+        publish_index = int(n_txt_file.read_text()) + 1
+        if not os.path.exists(conf.tool_output("title.txt")):
+            title = f"{publish_index}{publish_conf['note']['type']}.{create_podcast_title.summarize_title(memo_md)}"
+            logger.debug(f"タイトル生成: {title}")
+            conf.tool_output("title.txt").write_text(title)
+        else:
+            title = conf.tool_output("title.txt").read_text()
+            logger.debug(f"タイトル読み込み: {title}")
         # Show Noteの作成
         if "create_show_note" in publish_conf and publish_conf["create_show_note"]:
             output_show_note = conf.tool_output("show_note.md")
@@ -452,11 +456,11 @@ class ConverterApp(ft.UserControl):
                 self.podcast_meta["description"] = Path(output_show_note).read_text()
                 self.podcast_meta["memo_path"] = output_show_note
 
-        logger.debug(f"title path:{conf.tool_output('title.txt')} ,title:{title}")
         self.podcast_meta["episode_number"] = publish_index
         self.podcast_meta["transcript"] = conf.tool_output("stt.srt").read_text()
         self.podcast_meta["title"] = title
         self.podcast_meta["title_path"] = conf.tool_output("title.txt")
+        self.podcast_meta["n_txt_file"] = n_txt_file
 
         # update ui
         self.title_text.value = title
@@ -524,6 +528,8 @@ class ConverterApp(ft.UserControl):
 
             logger.info(result)
             logger.success("Publish Success")
+            # Post process
+            increment_file(self.podcast_meta["n_txt_file"])
         except Exception as e:
             logger.exception(e)
             print(e)
