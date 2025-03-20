@@ -31,8 +31,12 @@ async def share(url: str, retry: int = 3,
             continue
     if url:
         # blueskyで共有
-        result["blue_sky"] = blue_sky.post_card(url, dry_run=draft)
-        logger.info(f"Blue Skyに投稿しました:{result['blue_sky']}")
+        try:
+            result["blue_sky"] = blue_sky.post_card(url, dry_run=draft)
+            logger.info(f"Blue Skyに投稿しました:{result['blue_sky']}")
+        except Exception as e:
+            result["blue_sky"] = None
+            logger.warning("Failed to post to Blue Sky: Skip Blue Sky")
         # Xで共有
         result["twitter"] = twitter.tweet(title, url, dry_run=draft)
         logger.info(f"Twitterに投稿しました:{result['twitter']}")
@@ -51,7 +55,7 @@ async def share(url: str, retry: int = 3,
                        **blog_template_kwargs}
         post_markdown: str = render_from_file(blog_template, blog_kwargs)
         status, url = hatena.post_blog(title, post_markdown, blog_kwargs["categories"], draft=draft)
-        result["hatena_md"] = post_markdown
+        # result["hatena_md"] = post_markdown
         result["hatena_url"] = url
         result["hatena_status"] = status
 
