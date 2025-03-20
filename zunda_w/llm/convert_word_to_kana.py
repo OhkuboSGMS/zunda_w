@@ -3,9 +3,10 @@ from pathlib import Path
 from typing import Sequence
 
 import srt
-from langchain.chat_models import ChatOpenAI
-from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate
-from langchain.schema import SystemMessage
+
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
+from langchain_core.messages import SystemMessage
 from loguru import logger
 from zunda_w.postprocess.srt import tag
 

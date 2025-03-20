@@ -1,8 +1,7 @@
-from functools import partial
 from pathlib import Path
 
-import anthropic
-from anthropic.types import Message
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import SystemMessage, HumanMessage
 
 
 def create_show_note(transcript: str, resource_note: str) -> str:
@@ -12,36 +11,29 @@ def create_show_note(transcript: str, resource_note: str) -> str:
     :param resource_note: リソースノート
     :return: ショーノート
     """
-    system_message = "あなたはラジオディレクターです。ポッドキャストを文字起こしした文章を与えるので、トピックごとのショーノートを作成してください。チャットとしての返答はせずに出力だけ行ってください。"
-    client = anthropic.Anthropic()  # defaults to os.environ.get("ANTHROPIC_API_KEY")
-    # claude-3-sonnet-20240229
-    # claude-3-opus-20240229
-    request = partial(client.messages.create,
-                      model="claude-3-5-sonnet-20240620",
-                      # claude-3-sonnet-20240229",
-                      max_tokens=4000,
-                      temperature=0,
-                      system=system_message,
-                      )
+
+    system_message = SystemMessage(
+        "あなたはラジオディレクターです。ポッドキャストを文字起こしした文章を与えるので、トピックごとのショーノートを作成してください。\n ")
+    llm = init_chat_model(model="gpt-4o", model_provider="openai", temperature=0, max_tokens=4000)
     history = [
-        {"role": "user", "content": transcript},
+        HumanMessage(transcript),
     ]
 
-    response = request(messages=history)
-    # TODO: hisotryを分ける
-    history.append({"role": response.role, "content": response.content})
-    history.append(
-        {"role": "user", "content": f"ポッドキャスト収録時に参考にした資料です。\nショーノートにこれらの資料のリンクを合わせて再構成してください。{resource_note}#出力"})
-    response2 = request(messages=history)
-    history.append({"role": response2.role, "content": response2.content})
-    history.append({"role": "user", "content": "この配信に視聴者が目を引くようなタイトルをつけてください"})
-    response3: Message = request(messages=history)
-    Path("show_note1.json").write_text(response.to_json())
-    Path("show_note2.json").write_text(response2.to_json())
-    # Path("show_note3.json").write_text(response3.to_json())
+    response = llm.invoke([system_message] + history)
+    history.append(HumanMessage(response.content))
+    history.append(HumanMessage(
+        f"ポッドキャスト収録時に参考にした資料です。\nショーノートにこれらの資料のリンクを合わせて再構成してください。{resource_note}#出力"))
+    response2 = llm.invoke([system_message] + history)
+    history.append(HumanMessage(response2.content))
+    history.append(HumanMessage("この配信に視聴者が目を引くようなタイトルをつけてください"))
+    response3 = llm.invoke([system_message] + history)
 
-    print(response.usage)
+    Path("show_note1.json").write_text(response.text())
+    Path("show_note2.json").write_text(response2.text())
+    Path("show_note3.json").write_text(response3.text())
+
+    # print(response.usage)
     # print(response2.usage)
     # print(response3.usage)
 
-    return response2.content[0].text, response3.content[0].text
+    return response2.content, response3.content
